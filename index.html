@@ -579,6 +579,35 @@
     min-width: 20px;
     padding-top: 1px;
   }
+
+  .route-plan {
+    display: none;
+    margin-top: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .route-plan.visible { display: block; }
+  .route-plan-title {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .route-plan-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .route-plan-row:last-child { border-bottom: none; }
+  .route-plan-label { color: var(--muted); }
+  .route-plan-value { color: var(--text); text-align: right; }
 </style>
 </head>
 <body>
@@ -727,6 +756,26 @@
         </div>
       </div>
 
+      <div class="route-plan" id="route-plan">
+        <div class="route-plan-title">Run Plan</div>
+        <div class="route-plan-row">
+          <span class="route-plan-label">Mode</span>
+          <span class="route-plan-value" id="plan-mode">—</span>
+        </div>
+        <div class="route-plan-row">
+          <span class="route-plan-label">Looping</span>
+          <span class="route-plan-value" id="plan-loops">—</span>
+        </div>
+        <div class="route-plan-row">
+          <span class="route-plan-label">Per Loop</span>
+          <span class="route-plan-value" id="plan-per-loop">—</span>
+        </div>
+        <div class="route-plan-row">
+          <span class="route-plan-label">Strict Match</span>
+          <span class="route-plan-value" id="plan-strict">—</span>
+        </div>
+      </div>
+
       <!-- Turn list -->
       <div class="turn-list" id="turn-list">
         <div class="turn-list-title">Turn-by-turn directions</div>
@@ -743,7 +792,9 @@
       <div class="map-topbar-badges">
         <span class="badge badge-green" id="badge-dist">—</span>
         <span class="badge badge-blue" id="badge-variant">Variant 1</span>
-        <span class="badge badge-blue">No Highways</span>
+        <span class="badge badge-blue" id="badge-loop-mode">Loop x1</span>
+        <span class="badge badge-blue" id="badge-strict-mode">Strict +/- 2 km</span>
+        <span class="badge badge-blue" id="badge-highways">No Highways</span>
       </div>
     </div>
     <div class="map-empty" id="map-empty">
@@ -766,6 +817,7 @@ let currentVariant = 0;
 let currentLoopCount = 1;
 const MAX_VARIANTS = 5;
 let lastStartFull = '', lastEndFull = '';
+let lastRouteOptions = null;
 
 // ─── Date / Seed ─────────────────────────────────────────────────────────────
 function getDaySeed() {
@@ -982,9 +1034,14 @@ function clearRouteDisplay() {
   document.getElementById('btn-gmaps').disabled = true;
   document.getElementById('map-topbar').classList.remove('visible');
   document.getElementById('route-stats').style.display = 'none';
+  document.getElementById('route-plan').classList.remove('visible');
   document.getElementById('turn-list').classList.remove('visible');
   document.getElementById('turn-items').innerHTML = '';
   if (directionsRenderer) directionsRenderer.set('directions', null);
+}
+
+function getLoopCountValue() {
+  return clamp(Math.round(parseFloat(document.getElementById('loop-count').value) || 1), 1, 6);
 }
 
 function createLoopWaypoints(origin, radiusKm, count, seed) {
@@ -1127,7 +1184,9 @@ function generateRoute() {
   const start = document.getElementById('start-point').value.trim();
   const end = document.getElementById('end-point').value.trim();
   const sameLoop = document.getElementById('same-loc').checked;
-  const loopCount = sameLoop ? clamp(Math.round(parseFloat(document.getElementById('loop-count').value) || 1), 1, 6) : 1;
+  const loopCount = sameLoop ? getLoopCountValue() : 1;
+  const avoidHighways = document.getElementById('pref-no-highway').classList.contains('active');
+  const targetKm = parseFloat(document.getElementById('dist-slider').value);
 
   if (!start) { showStatus('Please enter a start point.', 'error'); return; }
 
@@ -1137,37 +1196,45 @@ function generateRoute() {
   const endFull = sameLoop ? startFull : (end ? (pincode ? `${end}, ${pincode}` : end) : startFull);
   lastStartFull = startFull;
   lastEndFull = endFull;
+  lastRouteOptions = {
+    sameLoop,
+    loopCount,
+    avoidHighways,
+    targetKm,
+  };
 
-  renderVariant(startFull, endFull, 0, true, sameLoop, loopCount);
+  renderVariant(startFull, endFull, 0, true, lastRouteOptions);
 }
 
 function changeVariant(delta) {
-  if (!lastStartFull) return;
+  if (!lastStartFull || !lastRouteOptions) return;
   const next = currentVariant + delta;
   if (next < 0 || next >= MAX_VARIANTS) return;
   currentVariant = next;
-  renderVariant(lastStartFull, lastEndFull, currentVariant, false, document.getElementById('same-loc').checked, currentLoopCount);
+  renderVariant(lastStartFull, lastEndFull, currentVariant, false, lastRouteOptions);
 }
 
 function shuffleRoute() {
-  if (!lastStartFull) return;
+  if (!lastStartFull || !lastRouteOptions) return;
   let next;
   do { next = Math.floor(Math.random() * MAX_VARIANTS); } while (next === currentVariant && MAX_VARIANTS > 1);
   currentVariant = next;
-  renderVariant(lastStartFull, lastEndFull, currentVariant, false, document.getElementById('same-loc').checked, currentLoopCount);
+  renderVariant(lastStartFull, lastEndFull, currentVariant, false, lastRouteOptions);
 }
 
 function goToVariant(idx) {
-  if (idx === currentVariant || !lastStartFull) return;
+  if (idx === currentVariant || !lastStartFull || !lastRouteOptions) return;
   currentVariant = idx;
-  renderVariant(lastStartFull, lastEndFull, currentVariant, false, document.getElementById('same-loc').checked, currentLoopCount);
+  renderVariant(lastStartFull, lastEndFull, currentVariant, false, lastRouteOptions);
 }
 
-async function renderVariant(startFull, endFull, variantIdx, isFirst, sameLoop, loopCount) {
-  const target_km = parseFloat(document.getElementById('dist-slider').value);
+async function renderVariant(startFull, endFull, variantIdx, isFirst, routeOptions) {
+  const target_km = routeOptions.targetKm;
   const baseSeed = getDaySeed();
   const variantSeed = baseSeed + variantIdx * 7919;
-  const avoidHighways = document.getElementById('pref-no-highway').classList.contains('active');
+  const sameLoop = routeOptions.sameLoop;
+  const loopCount = routeOptions.loopCount;
+  const avoidHighways = routeOptions.avoidHighways;
 
   setLoading(true); clearStatus();
 
@@ -1208,8 +1275,8 @@ async function renderVariant(startFull, endFull, variantIdx, isFirst, sameLoop, 
     currentWaypoints = bestMatch.waypoints;
     directionsRenderer.setDirections(bestMatch.result);
     currentRoute = bestMatch.result;
-    displayRouteInfo(bestMatch.result, target_km, baseSeed, variantIdx, loopCount, bestMatch.totalDistanceKm);
-    buildGoogleMapsUrl(startFull, endFull, bestMatch.waypoints);
+    displayRouteInfo(bestMatch.result, target_km, baseSeed, variantIdx, loopCount, bestMatch.distanceKm, bestMatch.totalDistanceKm, sameLoop, avoidHighways);
+    buildGoogleMapsUrl(startFull, endFull, bestMatch.waypoints, sameLoop, loopCount);
     document.getElementById('btn-gmaps').disabled = false;
     document.getElementById('map-topbar').classList.add('visible');
     updateVariantUI(variantIdx);
@@ -1247,14 +1314,16 @@ function updateVariantUI(idx) {
   document.getElementById('badge-variant').textContent = `V${idx + 1}`;
 }
 
-function displayRouteInfo(result, target_km, seed, variantIdx, loopCount, totalDistanceKm) {
+function displayRouteInfo(result, target_km, seed, variantIdx, loopCount, loopDistanceKm, totalDistanceKm, sameLoop, avoidHighways) {
   let totalDist = 0, totalTime = 0;
   result.routes[0].legs.forEach(leg => {
     totalDist += leg.distance.value;
     totalTime += leg.duration.value;
   });
   const routeKm = totalDistanceKm || (totalDist / 1000) * loopCount;
+  const perLoopKm = loopDistanceKm || (totalDist / 1000);
   const km = routeKm.toFixed(1);
+  const perLoopText = perLoopKm.toFixed(1);
   const mins = Math.round((totalTime / 60) * loopCount);
   const hrs = Math.floor(mins / 60);
   const timeStr = hrs > 0 ? `${hrs}h${mins % 60}m` : `${mins}m`;
@@ -1265,8 +1334,16 @@ function displayRouteInfo(result, target_km, seed, variantIdx, loopCount, totalD
   document.getElementById('badge-dist').textContent = km + ' km';
   const loopLabel = loopCount > 1 ? ` · ${loopCount}x loop` : '';
   document.getElementById('route-name').innerHTML = `Route <span>#${seed % 10000} · V${variantIdx + 1}${loopLabel}</span>`;
+  document.getElementById('badge-loop-mode').textContent = sameLoop ? `Loop x${loopCount}` : 'Point-to-point';
+  document.getElementById('badge-strict-mode').textContent = `Strict +/- ${ROUTE_TOLERANCE_KM} km`;
+  document.getElementById('badge-highways').textContent = avoidHighways ? 'No Highways' : 'Highways OK';
   document.getElementById('day-name').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   document.getElementById('route-stats').style.display = 'block';
+  document.getElementById('route-plan').classList.add('visible');
+  document.getElementById('plan-mode').textContent = sameLoop ? 'Loop route' : 'Point-to-point';
+  document.getElementById('plan-loops').textContent = sameLoop ? `${loopCount} time${loopCount === 1 ? '' : 's'}` : 'Single pass';
+  document.getElementById('plan-per-loop').textContent = sameLoop ? `${perLoopText} km per lap` : `${km} km route`;
+  document.getElementById('plan-strict').textContent = `Matched within +/- ${ROUTE_TOLERANCE_KM} km`;
 
   // Turn list
   const items = document.getElementById('turn-items');
@@ -1275,7 +1352,7 @@ function displayRouteInfo(result, target_km, seed, variantIdx, loopCount, totalD
   if (loopCount > 1) {
     const intro = document.createElement('div');
     intro.className = 'turn-item';
-    intro.innerHTML = `<span class="turn-num">i</span><span>Repeat this loop ${loopCount} times to reach about ${km} km total.</span>`;
+    intro.innerHTML = `<span class="turn-num">i</span><span>Repeat this same loop ${loopCount} times. Each lap is about ${perLoopText} km, for about ${km} km total.</span>`;
     items.appendChild(intro);
   }
   result.routes[0].legs.forEach(leg => {
@@ -1289,10 +1366,22 @@ function displayRouteInfo(result, target_km, seed, variantIdx, loopCount, totalD
   document.getElementById('turn-list').classList.add('visible');
 }
 
-function buildGoogleMapsUrl(start, end, waypoints) {
+function buildGoogleMapsUrl(start, end, waypoints, sameLoop, loopCount) {
   const base = 'https://www.google.com/maps/dir/';
   const wps = waypoints.slice(0, 8).map(w => `${w.location.lat.toFixed(5)},${w.location.lng.toFixed(5)}`);
-  const parts = [encodeURIComponent(start), ...wps, encodeURIComponent(end)];
+  let parts;
+
+  if (sameLoop && loopCount > 1) {
+    const repeated = [encodeURIComponent(start)];
+    for (let lap = 0; lap < loopCount; lap++) {
+      repeated.push(...wps);
+      repeated.push(encodeURIComponent(end));
+    }
+    parts = repeated.length <= 10 ? repeated : [encodeURIComponent(start), ...wps, encodeURIComponent(end)];
+  } else {
+    parts = [encodeURIComponent(start), ...wps, encodeURIComponent(end)];
+  }
+
   googleMapsUrl = base + parts.join('/');
 }
 
