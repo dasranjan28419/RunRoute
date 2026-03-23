@@ -1043,26 +1043,17 @@ function extractTurnTraceFromResult(result) {
   return trace;
 }
 
-function sampleTraceWaypoints(trace, maxPoints) {
-  if (!Array.isArray(trace) || trace.length <= 2 || maxPoints <= 0) return [];
+function buildFullTraceStops(routeMeta) {
+  const trace = Array.isArray(routeMeta.turnTrace) ? routeMeta.turnTrace : [];
+  if (!trace.length) return [];
 
-  const candidatePoints = trace.slice(0, -1);
-  if (candidatePoints.length <= maxPoints) {
-    return candidatePoints.map(point => ({ location: { lat: point.lat, lng: point.lng }, stopover: false }));
+  if (!routeMeta.sameLoop) {
+    return trace.slice(0, -1);
   }
 
-  const sampled = [];
-  const usedIndexes = new Set();
-  for (let i = 1; i <= maxPoints; i++) {
-    const idx = Math.round((i * candidatePoints.length) / (maxPoints + 1)) - 1;
-    const clampedIdx = clamp(idx, 0, candidatePoints.length - 1);
-    if (usedIndexes.has(clampedIdx)) continue;
-    usedIndexes.add(clampedIdx);
-    const point = candidatePoints[clampedIdx];
-    sampled.push({ location: { lat: point.lat, lng: point.lng }, stopover: false });
-  }
-
-  return sampled;
+  const outboundStops = trace.map(point => ({ lat: point.lat, lng: point.lng }));
+  const retraceStops = outboundStops.slice(0, -1).reverse();
+  return [...outboundStops, ...retraceStops];
 }
 
 function geocodeAddress(address) {
@@ -1725,21 +1716,11 @@ function displayRouteInfo(result, target_km, seed, variantIdx, routeMeta) {
 
 function buildGoogleMapsUrl(start, end, waypoints, routeMeta) {
   const base = 'https://www.google.com/maps/dir/';
-  const sameLoop = routeMeta.sameLoop;
-  const traceWaypoints = sampleTraceWaypoints(routeMeta.turnTrace || [], sameLoop ? 8 : 6)
-    .map(w => `${w.location.lat.toFixed(5)},${w.location.lng.toFixed(5)}`);
+  const traceStops = buildFullTraceStops(routeMeta)
+    .map(point => `${point.lat.toFixed(5)},${point.lng.toFixed(5)}`);
 
-  if (sameLoop && routeMeta.midpoint) {
-    googleMapsUrl = base + [
-      encodeURIComponent(start),
-      ...traceWaypoints,
-      `${routeMeta.midpoint.lat.toFixed(5)},${routeMeta.midpoint.lng.toFixed(5)}`
-    ].join('/');
-    return;
-  }
-
-  const wps = traceWaypoints.length
-    ? traceWaypoints
+  const wps = traceStops.length
+    ? traceStops
     : waypoints.slice(0, 8).map(w => `${w.location.lat.toFixed(5)},${w.location.lng.toFixed(5)}`);
   const parts = [encodeURIComponent(start), ...wps, encodeURIComponent(end)];
   googleMapsUrl = base + parts.join('/');
