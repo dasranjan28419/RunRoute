@@ -629,6 +629,14 @@
         </label>
       </div>
 
+      <div class="field-group" id="loop-count-group" style="opacity:0.5">
+        <label class="field-label">Loop Count</label>
+        <input type="number" id="loop-count" min="1" max="6" step="1" value="1" disabled>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">
+          Repeat the same loop to reach your total distance target.
+        </div>
+      </div>
+
       <div class="divider"></div>
 
       <!-- Distance -->
@@ -755,6 +763,7 @@ let currentRoute = null;
 let currentWaypoints = [];
 let googleMapsUrl = '';
 let currentVariant = 0;
+let currentLoopCount = 1;
 const MAX_VARIANTS = 5;
 let lastStartFull = '', lastEndFull = '';
 
@@ -784,13 +793,20 @@ function updateDistance(val) {
 
 function toggleSameLocation(cb) {
   const ep = document.getElementById('end-point');
+  const loopCountInput = document.getElementById('loop-count');
+  const loopCountGroup = document.getElementById('loop-count-group');
   if (cb.checked) {
     ep.value = document.getElementById('start-point').value;
     ep.disabled = true;
     ep.style.opacity = '0.5';
+    loopCountInput.disabled = false;
+    loopCountGroup.style.opacity = '1';
   } else {
     ep.disabled = false;
     ep.style.opacity = '1';
+    loopCountInput.disabled = true;
+    loopCountInput.value = '1';
+    loopCountGroup.style.opacity = '0.5';
   }
 }
 
@@ -798,6 +814,11 @@ document.getElementById('start-point').addEventListener('input', function() {
   if (document.getElementById('same-loc').checked) {
     document.getElementById('end-point').value = this.value;
   }
+});
+
+document.getElementById('loop-count').addEventListener('input', function() {
+  const value = Math.round(parseFloat(this.value) || 1);
+  this.value = String(clamp(value, 1, 6));
 });
 
 function togglePref(el) { el.classList.toggle('active'); }
@@ -954,6 +975,18 @@ function requestDirectionsRoute(request) {
   });
 }
 
+function clearRouteDisplay() {
+  currentRoute = null;
+  currentWaypoints = [];
+  googleMapsUrl = '';
+  document.getElementById('btn-gmaps').disabled = true;
+  document.getElementById('map-topbar').classList.remove('visible');
+  document.getElementById('route-stats').style.display = 'none';
+  document.getElementById('turn-list').classList.remove('visible');
+  document.getElementById('turn-items').innerHTML = '';
+  if (directionsRenderer) directionsRenderer.set('directions', null);
+}
+
 function createLoopWaypoints(origin, radiusKm, count, seed) {
   const waypoints = [];
   const angleBase = seededRandom(seed, 0) * 360;
@@ -1018,10 +1051,11 @@ function buildRouteCandidates(origin, destination, targetKm, seed, sameLoop, dir
   ];
 }
 
-async function findBestRouteMatch(startFull, endFull, origin, destination, targetKm, variantSeed, avoidHighways, sameLoop) {
+async function findBestRouteMatch(startFull, endFull, origin, destination, targetKm, variantSeed, avoidHighways, sameLoop, loopCount) {
   let best = null;
   let lastStatus = 'ZERO_RESULTS';
   let directKm = null;
+  const perLoopTargetKm = sameLoop ? (targetKm / loopCount) : targetKm;
 
   const baseRequest = {
     origin: startFull,
@@ -1042,6 +1076,7 @@ async function findBestRouteMatch(startFull, endFull, origin, destination, targe
         result: directResponse.result,
         waypoints: [],
         distanceKm: directKm,
+        totalDistanceKm: directKm,
         deltaKm: Math.abs(directKm - targetKm),
       };
 
@@ -1056,7 +1091,7 @@ async function findBestRouteMatch(startFull, endFull, origin, destination, targe
     }
   }
 
-  const candidates = buildRouteCandidates(origin, destination, targetKm, variantSeed, sameLoop, directKm);
+  const candidates = buildRouteCandidates(origin, destination, perLoopTargetKm, variantSeed, sameLoop, directKm);
 
   for (const waypoints of candidates) {
     const response = await requestDirectionsRoute({ ...baseRequest, waypoints });
@@ -1064,10 +1099,11 @@ async function findBestRouteMatch(startFull, endFull, origin, destination, targe
     if (response.status !== 'OK') continue;
 
     const distanceKm = getRouteDistanceKm(response.result);
-    const deltaKm = Math.abs(distanceKm - targetKm);
+    const totalDistanceKm = distanceKm * loopCount;
+    const deltaKm = Math.abs(totalDistanceKm - targetKm);
 
     if (!best || deltaKm < best.deltaKm) {
-      best = { result: response.result, waypoints, distanceKm, deltaKm };
+      best = { result: response.result, waypoints, distanceKm, totalDistanceKm, deltaKm };
     }
 
     if (deltaKm <= ROUTE_TOLERANCE_KM) {
@@ -1091,16 +1127,18 @@ function generateRoute() {
   const start = document.getElementById('start-point').value.trim();
   const end = document.getElementById('end-point').value.trim();
   const sameLoop = document.getElementById('same-loc').checked;
+  const loopCount = sameLoop ? clamp(Math.round(parseFloat(document.getElementById('loop-count').value) || 1), 1, 6) : 1;
 
   if (!start) { showStatus('Please enter a start point.', 'error'); return; }
 
   currentVariant = 0;
+  currentLoopCount = loopCount;
   const startFull = pincode ? `${start}, ${pincode}` : start;
   const endFull = sameLoop ? startFull : (end ? (pincode ? `${end}, ${pincode}` : end) : startFull);
   lastStartFull = startFull;
   lastEndFull = endFull;
 
-  renderVariant(startFull, endFull, 0, true);
+  renderVariant(startFull, endFull, 0, true, sameLoop, loopCount);
 }
 
 function changeVariant(delta) {
@@ -1108,7 +1146,7 @@ function changeVariant(delta) {
   const next = currentVariant + delta;
   if (next < 0 || next >= MAX_VARIANTS) return;
   currentVariant = next;
-  renderVariant(lastStartFull, lastEndFull, currentVariant, false);
+  renderVariant(lastStartFull, lastEndFull, currentVariant, false, document.getElementById('same-loc').checked, currentLoopCount);
 }
 
 function shuffleRoute() {
@@ -1116,20 +1154,19 @@ function shuffleRoute() {
   let next;
   do { next = Math.floor(Math.random() * MAX_VARIANTS); } while (next === currentVariant && MAX_VARIANTS > 1);
   currentVariant = next;
-  renderVariant(lastStartFull, lastEndFull, currentVariant, false);
+  renderVariant(lastStartFull, lastEndFull, currentVariant, false, document.getElementById('same-loc').checked, currentLoopCount);
 }
 
 function goToVariant(idx) {
   if (idx === currentVariant || !lastStartFull) return;
   currentVariant = idx;
-  renderVariant(lastStartFull, lastEndFull, currentVariant, false);
+  renderVariant(lastStartFull, lastEndFull, currentVariant, false, document.getElementById('same-loc').checked, currentLoopCount);
 }
 
-async function renderVariant(startFull, endFull, variantIdx, isFirst) {
+async function renderVariant(startFull, endFull, variantIdx, isFirst, sameLoop, loopCount) {
   const target_km = parseFloat(document.getElementById('dist-slider').value);
   const baseSeed = getDaySeed();
   const variantSeed = baseSeed + variantIdx * 7919;
-  const sameLoop = startFull === endFull;
   const avoidHighways = document.getElementById('pref-no-highway').classList.contains('active');
 
   setLoading(true); clearStatus();
@@ -1145,20 +1182,33 @@ async function renderVariant(startFull, endFull, variantIdx, isFirst) {
       target_km,
       variantSeed,
       avoidHighways,
-      sameLoop
+      sameLoop,
+      loopCount
     );
 
     setLoading(false);
 
-    if (!bestMatch.result) {
-      showStatus(`Could not calculate route: ${bestMatch.status}. Try adjusting your distance or location.`, 'error');
+    if (!bestMatch.result || !bestMatch.matched) {
+      clearRouteDisplay();
+      const closestText = bestMatch.totalDistanceKm ? ` Closest result was ${bestMatch.totalDistanceKm.toFixed(1)} km.` : '';
+      if (sameLoop) {
+        showStatus(
+          `Could not find a loop within +/- ${ROUTE_TOLERANCE_KM} km of ${target_km.toFixed(1)} km.${closestText} Try increasing Loop Count or unchecking "Loop route".`,
+          'warn'
+        );
+      } else {
+        showStatus(
+          `Could not find a route within +/- ${ROUTE_TOLERANCE_KM} km of ${target_km.toFixed(1)} km.${closestText} Try a different end point or a nearby target distance.`,
+          'warn'
+        );
+      }
       return;
     }
 
     currentWaypoints = bestMatch.waypoints;
     directionsRenderer.setDirections(bestMatch.result);
     currentRoute = bestMatch.result;
-    displayRouteInfo(bestMatch.result, target_km, baseSeed, variantIdx);
+    displayRouteInfo(bestMatch.result, target_km, baseSeed, variantIdx, loopCount, bestMatch.totalDistanceKm);
     buildGoogleMapsUrl(startFull, endFull, bestMatch.waypoints);
     document.getElementById('btn-gmaps').disabled = false;
     document.getElementById('map-topbar').classList.add('visible');
@@ -1167,15 +1217,13 @@ async function renderVariant(startFull, endFull, variantIdx, isFirst) {
       document.getElementById('route-switcher').classList.add('visible');
     }
 
-    const actualKm = bestMatch.distanceKm.toFixed(1);
+    const actualKm = bestMatch.totalDistanceKm.toFixed(1);
     const targetText = target_km.toFixed(1);
-    if (bestMatch.matched) {
-      showStatus(`Route found at ${actualKm} km for your ${targetText} km target.`, 'info');
-    } else {
-      showStatus(`Closest route found is ${actualKm} km for your ${targetText} km target.`, 'warn');
-    }
+    const loopText = sameLoop && loopCount > 1 ? ` using ${loopCount} loops` : '';
+    showStatus(`Route found at ${actualKm} km for your ${targetText} km target${loopText}.`, 'info');
   } catch (err) {
     setLoading(false);
+    clearRouteDisplay();
     showStatus(err.message || 'Could not calculate route. Try adjusting your distance or location.', 'error');
   }
 }
@@ -1199,14 +1247,15 @@ function updateVariantUI(idx) {
   document.getElementById('badge-variant').textContent = `V${idx + 1}`;
 }
 
-function displayRouteInfo(result, target_km, seed, variantIdx) {
+function displayRouteInfo(result, target_km, seed, variantIdx, loopCount, totalDistanceKm) {
   let totalDist = 0, totalTime = 0;
   result.routes[0].legs.forEach(leg => {
     totalDist += leg.distance.value;
     totalTime += leg.duration.value;
   });
-  const km = (totalDist / 1000).toFixed(1);
-  const mins = Math.round(totalTime / 60);
+  const routeKm = totalDistanceKm || (totalDist / 1000) * loopCount;
+  const km = routeKm.toFixed(1);
+  const mins = Math.round((totalTime / 60) * loopCount);
   const hrs = Math.floor(mins / 60);
   const timeStr = hrs > 0 ? `${hrs}h${mins % 60}m` : `${mins}m`;
 
@@ -1214,7 +1263,8 @@ function displayRouteInfo(result, target_km, seed, variantIdx) {
   document.getElementById('stat-time').textContent = timeStr;
   document.getElementById('stat-seed').textContent = '#' + (seed % 10000);
   document.getElementById('badge-dist').textContent = km + ' km';
-  document.getElementById('route-name').innerHTML = `Route <span>#${seed % 10000} · V${variantIdx + 1}</span>`;
+  const loopLabel = loopCount > 1 ? ` · ${loopCount}x loop` : '';
+  document.getElementById('route-name').innerHTML = `Route <span>#${seed % 10000} · V${variantIdx + 1}${loopLabel}</span>`;
   document.getElementById('day-name').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   document.getElementById('route-stats').style.display = 'block';
 
@@ -1222,6 +1272,12 @@ function displayRouteInfo(result, target_km, seed, variantIdx) {
   const items = document.getElementById('turn-items');
   items.innerHTML = '';
   let stepNum = 1;
+  if (loopCount > 1) {
+    const intro = document.createElement('div');
+    intro.className = 'turn-item';
+    intro.innerHTML = `<span class="turn-num">i</span><span>Repeat this loop ${loopCount} times to reach about ${km} km total.</span>`;
+    items.appendChild(intro);
+  }
   result.routes[0].legs.forEach(leg => {
     leg.steps.slice(0, 12).forEach(step => {
       const div = document.createElement('div');
@@ -1275,6 +1331,8 @@ if ('serviceWorker' in navigator) {
       .catch(err => console.warn('[RunRoute] SW failed:', err));
   });
 }
+
+toggleSameLocation(document.getElementById('same-loc'));
 </script>
 </body>
 </html>
