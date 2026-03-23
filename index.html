@@ -812,6 +812,7 @@ let map, directionsService, directionsRenderer, geocoder, placesService;
 let mapsLoaded = false;
 let currentRoute = null;
 let currentWaypoints = [];
+let currentRouteMeta = null;
 let googleMapsUrl = '';
 let currentVariant = 0;
 let currentLoopCount = 1;
@@ -936,6 +937,7 @@ window.initMap = function() {
   });
   directionsRenderer.setMap(map);
   geocoder = new google.maps.Geocoder();
+  placesService = new google.maps.places.PlacesService(map);
   document.getElementById('map-empty').classList.add('hidden');
   clearStatus();
   showStatus('Map loaded! Enter your details and generate a route.', 'info');
@@ -1030,6 +1032,7 @@ function requestDirectionsRoute(request) {
 function clearRouteDisplay() {
   currentRoute = null;
   currentWaypoints = [];
+  currentRouteMeta = null;
   googleMapsUrl = '';
   document.getElementById('btn-gmaps').disabled = true;
   document.getElementById('map-topbar').classList.remove('visible');
@@ -1042,22 +1045,6 @@ function clearRouteDisplay() {
 
 function getLoopCountValue() {
   return clamp(Math.round(parseFloat(document.getElementById('loop-count').value) || 1), 1, 6);
-}
-
-function createLoopWaypoints(origin, radiusKm, count, seed) {
-  const waypoints = [];
-  const angleBase = seededRandom(seed, 0) * 360;
-
-  for (let i = 0; i < count; i++) {
-    const angle = angleBase + (360 / count) * i + (seededRandom(seed, i + 10) - 0.5) * 18;
-    const radius = radiusKm * (0.9 + seededRandom(seed, i + 20) * 0.2);
-    waypoints.push({
-      location: projectPoint(origin, angle, radius),
-      stopover: false
-    });
-  }
-
-  return waypoints;
 }
 
 function createDetourWaypoints(origin, destination, detourKm, count, seed) {
@@ -1079,20 +1066,7 @@ function createDetourWaypoints(origin, destination, detourKm, count, seed) {
   return waypoints;
 }
 
-function buildRouteCandidates(origin, destination, targetKm, seed, sameLoop, directKm) {
-  if (sameLoop) {
-    const baseRadius = clamp(targetKm / 5.6, 0.35, Math.max(0.9, targetKm * 0.42));
-    return [
-      createLoopWaypoints(origin, baseRadius, 3, seed + 11),
-      createLoopWaypoints(origin, baseRadius * 0.95, 4, seed + 23),
-      createLoopWaypoints(origin, baseRadius * 1.1, 3, seed + 37),
-      createLoopWaypoints(origin, baseRadius * 1.25, 2, seed + 41),
-      createLoopWaypoints(origin, baseRadius * 0.8, 2, seed + 53),
-      createLoopWaypoints(origin, baseRadius * 1.45, 1, seed + 67),
-      createLoopWaypoints(origin, baseRadius * 1.7, 2, seed + 79),
-    ];
-  }
-
+function buildRouteCandidates(origin, destination, targetKm, seed, directKm) {
   const baselineKm = Math.max(directKm || 0, haversineKm(origin, destination));
   const extraKm = Math.max(0.6, targetKm - baselineKm);
   const baseDetourKm = clamp(extraKm / 2.4, 0.35, Math.max(1.2, targetKm * 0.5));
@@ -1108,11 +1082,91 @@ function buildRouteCandidates(origin, destination, targetKm, seed, sameLoop, dir
   ];
 }
 
-async function findBestRouteMatch(startFull, endFull, origin, destination, targetKm, variantSeed, avoidHighways, sameLoop, loopCount) {
+function buildMidpointCandidates(origin, oneWayTargetKm, seed) {
+  const candidates = [];
+  const baseAngle = seededRandom(seed, 60) * 360;
+  const bearings = 8;
+  const scales = [0.45, 0.58, 0.70, 0.82, 0.94];
+
+  scales.forEach((scale, scaleIdx) => {
+    for (let i = 0; i < bearings; i++) {
+      const jitter = (seededRandom(seed, scaleIdx * 50 + i + 1) - 0.5) * 12;
+      const bearing = baseAngle + (360 / bearings) * i + jitter;
+      const distanceKm = Math.max(0.25, oneWayTargetKm * scale);
+      candidates.push({
+        location: projectPoint(origin, bearing, distanceKm),
+        source: 'anchor',
+        straightKm: distanceKm,
+      });
+    }
+  });
+
+  return candidates;
+}
+
+async function findBestRetraceRouteMatch(startFull, origin, targetKm, variantSeed, avoidHighways, loopCount) {
+  const perLoopTargetKm = targetKm / loopCount;
+  const oneWayTargetKm = perLoopTargetKm / 2;
+  const toleranceKm = ROUTE_TOLERANCE_KM;
+  const candidates = buildMidpointCandidates(origin, oneWayTargetKm, variantSeed);
+  let best = null;
+  let lastStatus = 'ZERO_RESULTS';
+
+  const baseRequest = {
+    origin: startFull,
+    optimizeWaypoints: false,
+    travelMode: google.maps.TravelMode.WALKING,
+    avoidHighways,
+    avoidFerries: true,
+    unitSystem: google.maps.UnitSystem.METRIC,
+  };
+
+  for (const candidate of candidates) {
+    const response = await requestDirectionsRoute({
+      ...baseRequest,
+      destination: candidate.location,
+      waypoints: [],
+    });
+    lastStatus = response.status;
+    if (response.status !== 'OK') continue;
+
+    const outboundDistanceKm = getRouteDistanceKm(response.result);
+    const totalDistanceKm = outboundDistanceKm * 2 * loopCount;
+    const outboundDeltaKm = Math.abs(outboundDistanceKm - oneWayTargetKm);
+    const deltaKm = Math.abs(totalDistanceKm - targetKm);
+
+    if (!best || deltaKm < best.deltaKm || (deltaKm === best.deltaKm && outboundDeltaKm < best.outboundDeltaKm)) {
+      best = {
+        result: response.result,
+        waypoints: [],
+        midpoint: candidate.location,
+        distanceKm: outboundDistanceKm,
+        outboundDistanceKm,
+        oneWayTargetKm,
+        totalDistanceKm,
+        perLoopDistanceKm: outboundDistanceKm * 2,
+        deltaKm,
+        outboundDeltaKm,
+      };
+    }
+
+    if (deltaKm <= toleranceKm && outboundDeltaKm <= toleranceKm / 2) {
+      return { ...best, matched: true };
+    }
+  }
+
+  if (best) {
+    return { ...best, matched: best.deltaKm <= toleranceKm };
+  }
+
+  return { status: lastStatus };
+}
+
+async function findBestPointToPointRouteMatch(startFull, endFull, origin, destination, targetKm, variantSeed, avoidHighways, loopCount) {
   let best = null;
   let lastStatus = 'ZERO_RESULTS';
   let directKm = null;
-  const perLoopTargetKm = sameLoop ? (targetKm / loopCount) : targetKm;
+  const perLoopTargetKm = targetKm;
 
   const baseRequest = {
     origin: startFull,
@@ -1124,31 +1178,30 @@ async function findBestRouteMatch(startFull, endFull, origin, destination, targe
     unitSystem: google.maps.UnitSystem.METRIC,
   };
 
-  if (!sameLoop) {
-    const directResponse = await requestDirectionsRoute({ ...baseRequest, waypoints: [] });
-    lastStatus = directResponse.status;
-    if (directResponse.status === 'OK') {
-      directKm = getRouteDistanceKm(directResponse.result);
-      best = {
-        result: directResponse.result,
-        waypoints: [],
-        distanceKm: directKm,
-        totalDistanceKm: directKm,
-        deltaKm: Math.abs(directKm - targetKm),
-      };
+  const directResponse = await requestDirectionsRoute({ ...baseRequest, waypoints: [] });
+  lastStatus = directResponse.status;
+  if (directResponse.status === 'OK') {
+    directKm = getRouteDistanceKm(directResponse.result);
+    best = {
+      result: directResponse.result,
+      waypoints: [],
+      distanceKm: directKm,
+      totalDistanceKm: directKm,
+      perLoopDistanceKm: directKm,
+      deltaKm: Math.abs(directKm - targetKm),
+    };
 
-      // If the shortest direct route is already longer than requested,
-      // there is no realistic way to shrink it with extra waypoints.
-      if (directKm >= targetKm - ROUTE_TOLERANCE_KM) {
-        return {
-          ...best,
-          matched: best.deltaKm <= ROUTE_TOLERANCE_KM,
-        };
-      }
+    // If the shortest direct route is already longer than requested,
+    // there is no realistic way to shrink it with extra waypoints.
+    if (directKm >= targetKm - ROUTE_TOLERANCE_KM) {
+      return {
+        ...best,
+        matched: best.deltaKm <= ROUTE_TOLERANCE_KM,
+      };
     }
   }
 
-  const candidates = buildRouteCandidates(origin, destination, perLoopTargetKm, variantSeed, sameLoop, directKm);
+  const candidates = buildRouteCandidates(origin, destination, perLoopTargetKm, variantSeed, directKm);
 
   for (const waypoints of candidates) {
     const response = await requestDirectionsRoute({ ...baseRequest, waypoints });
@@ -1160,7 +1213,7 @@ async function findBestRouteMatch(startFull, endFull, origin, destination, targe
     const deltaKm = Math.abs(totalDistanceKm - targetKm);
 
     if (!best || deltaKm < best.deltaKm) {
-      best = { result: response.result, waypoints, distanceKm, totalDistanceKm, deltaKm };
+      best = { result: response.result, waypoints, distanceKm, totalDistanceKm, perLoopDistanceKm: distanceKm, deltaKm };
     }
 
     if (deltaKm <= ROUTE_TOLERANCE_KM) {
@@ -1241,17 +1294,25 @@ async function renderVariant(startFull, endFull, variantIdx, isFirst, routeOptio
   try {
     const origin = await geocodeAddress(startFull);
     const destination = sameLoop ? origin : await geocodeAddress(endFull);
-    const bestMatch = await findBestRouteMatch(
-      startFull,
-      endFull,
-      origin,
-      destination,
-      target_km,
-      variantSeed,
-      avoidHighways,
-      sameLoop,
-      loopCount
-    );
+    const bestMatch = sameLoop
+      ? await findBestRetraceRouteMatch(
+          startFull,
+          origin,
+          target_km,
+          variantSeed,
+          avoidHighways,
+          loopCount
+        )
+      : await findBestPointToPointRouteMatch(
+          startFull,
+          endFull,
+          origin,
+          destination,
+          target_km,
+          variantSeed,
+          avoidHighways,
+          loopCount
+        );
 
     setLoading(false);
 
@@ -1260,7 +1321,7 @@ async function renderVariant(startFull, endFull, variantIdx, isFirst, routeOptio
       const closestText = bestMatch.totalDistanceKm ? ` Closest result was ${bestMatch.totalDistanceKm.toFixed(1)} km.` : '';
       if (sameLoop) {
         showStatus(
-          `Could not find a loop within +/- ${ROUTE_TOLERANCE_KM} km of ${target_km.toFixed(1)} km.${closestText} Try increasing Loop Count or unchecking "Loop route".`,
+          `Could not find a turnaround point that gives ${target_km.toFixed(1)} km total within +/- ${ROUTE_TOLERANCE_KM} km.${closestText} Try a nearby start point or adjust the distance slightly.`,
           'warn'
         );
       } else {
@@ -1273,10 +1334,20 @@ async function renderVariant(startFull, endFull, variantIdx, isFirst, routeOptio
     }
 
     currentWaypoints = bestMatch.waypoints;
+    currentRouteMeta = {
+      sameLoop,
+      loopCount,
+      avoidHighways,
+      totalDistanceKm: bestMatch.totalDistanceKm,
+      perLoopDistanceKm: bestMatch.perLoopDistanceKm || bestMatch.distanceKm,
+      outboundDistanceKm: sameLoop ? bestMatch.outboundDistanceKm : null,
+      oneWayTargetKm: sameLoop ? bestMatch.oneWayTargetKm : null,
+      midpoint: bestMatch.midpoint || null,
+    };
     directionsRenderer.setDirections(bestMatch.result);
     currentRoute = bestMatch.result;
-    displayRouteInfo(bestMatch.result, target_km, baseSeed, variantIdx, loopCount, bestMatch.distanceKm, bestMatch.totalDistanceKm, sameLoop, avoidHighways);
-    buildGoogleMapsUrl(startFull, endFull, bestMatch.waypoints, sameLoop, loopCount);
+    displayRouteInfo(bestMatch.result, target_km, baseSeed, variantIdx, currentRouteMeta);
+    buildGoogleMapsUrl(startFull, endFull, bestMatch.waypoints, currentRouteMeta);
     document.getElementById('btn-gmaps').disabled = false;
     document.getElementById('map-topbar').classList.add('visible');
     updateVariantUI(variantIdx);
@@ -1286,8 +1357,9 @@ async function renderVariant(startFull, endFull, variantIdx, isFirst, routeOptio
 
     const actualKm = bestMatch.totalDistanceKm.toFixed(1);
     const targetText = target_km.toFixed(1);
-    const loopText = sameLoop && loopCount > 1 ? ` using ${loopCount} loops` : '';
-    showStatus(`Route found at ${actualKm} km for your ${targetText} km target${loopText}.`, 'info');
+    const loopText = sameLoop && loopCount > 1 ? ` across ${loopCount} retrace loops` : '';
+    const midpointText = sameLoop ? ` Midpoint leg: ${bestMatch.outboundDistanceKm.toFixed(1)} km out, then retrace.` : '';
+    showStatus(`Route found at ${actualKm} km for your ${targetText} km target${loopText}.${midpointText}`, 'info');
   } catch (err) {
     setLoading(false);
     clearRouteDisplay();
@@ -1314,17 +1386,23 @@ function updateVariantUI(idx) {
   document.getElementById('badge-variant').textContent = `V${idx + 1}`;
 }
 
-function displayRouteInfo(result, target_km, seed, variantIdx, loopCount, loopDistanceKm, totalDistanceKm, sameLoop, avoidHighways) {
+function displayRouteInfo(result, target_km, seed, variantIdx, routeMeta) {
   let totalDist = 0, totalTime = 0;
   result.routes[0].legs.forEach(leg => {
     totalDist += leg.distance.value;
     totalTime += leg.duration.value;
   });
-  const routeKm = totalDistanceKm || (totalDist / 1000) * loopCount;
-  const perLoopKm = loopDistanceKm || (totalDist / 1000);
+  const sameLoop = routeMeta.sameLoop;
+  const loopCount = routeMeta.loopCount;
+  const avoidHighways = routeMeta.avoidHighways;
+  const routeKm = routeMeta.totalDistanceKm || (totalDist / 1000);
+  const perLoopKm = routeMeta.perLoopDistanceKm || (totalDist / 1000);
+  const outboundKm = routeMeta.outboundDistanceKm || null;
+  const oneWayTargetKm = routeMeta.oneWayTargetKm || null;
   const km = routeKm.toFixed(1);
   const perLoopText = perLoopKm.toFixed(1);
-  const mins = Math.round((totalTime / 60) * loopCount);
+  const minsMultiplier = sameLoop ? (2 * loopCount) : loopCount;
+  const mins = Math.round((totalTime / 60) * minsMultiplier);
   const hrs = Math.floor(mins / 60);
   const timeStr = hrs > 0 ? `${hrs}h${mins % 60}m` : `${mins}m`;
 
@@ -1334,22 +1412,32 @@ function displayRouteInfo(result, target_km, seed, variantIdx, loopCount, loopDi
   document.getElementById('badge-dist').textContent = km + ' km';
   const loopLabel = loopCount > 1 ? ` · ${loopCount}x loop` : '';
   document.getElementById('route-name').innerHTML = `Route <span>#${seed % 10000} · V${variantIdx + 1}${loopLabel}</span>`;
-  document.getElementById('badge-loop-mode').textContent = sameLoop ? `Loop x${loopCount}` : 'Point-to-point';
+  document.getElementById('badge-loop-mode').textContent = sameLoop ? `Retrace x${loopCount}` : 'Point-to-point';
   document.getElementById('badge-strict-mode').textContent = `Strict +/- ${ROUTE_TOLERANCE_KM} km`;
   document.getElementById('badge-highways').textContent = avoidHighways ? 'No Highways' : 'Highways OK';
   document.getElementById('day-name').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   document.getElementById('route-stats').style.display = 'block';
   document.getElementById('route-plan').classList.add('visible');
-  document.getElementById('plan-mode').textContent = sameLoop ? 'Loop route' : 'Point-to-point';
-  document.getElementById('plan-loops').textContent = sameLoop ? `${loopCount} time${loopCount === 1 ? '' : 's'}` : 'Single pass';
-  document.getElementById('plan-per-loop').textContent = sameLoop ? `${perLoopText} km per lap` : `${km} km route`;
-  document.getElementById('plan-strict').textContent = `Matched within +/- ${ROUTE_TOLERANCE_KM} km`;
+  document.getElementById('plan-mode').textContent = sameLoop ? 'Out-and-back retrace' : 'Point-to-point';
+  document.getElementById('plan-loops').textContent = sameLoop ? `${loopCount} retrace lap${loopCount === 1 ? '' : 's'}` : 'Single pass';
+  document.getElementById('plan-per-loop').textContent = sameLoop
+    ? `${perLoopText} km total per lap (${outboundKm.toFixed(1)} km out + ${outboundKm.toFixed(1)} km back)`
+    : `${km} km route`;
+  document.getElementById('plan-strict').textContent = sameLoop
+    ? `Half-distance check: ${oneWayTargetKm.toFixed(1)} km target, ${outboundKm.toFixed(1)} km actual`
+    : `Matched within +/- ${ROUTE_TOLERANCE_KM} km`;
 
   // Turn list
   const items = document.getElementById('turn-items');
   items.innerHTML = '';
   let stepNum = 1;
-  if (loopCount > 1) {
+  if (sameLoop) {
+    const intro = document.createElement('div');
+    intro.className = 'turn-item';
+    const repeatText = loopCount > 1 ? ` Repeat the same out-and-back lap ${loopCount} times.` : '';
+    intro.innerHTML = `<span class="turn-num">i</span><span>Run to the midpoint using the directions below, then retrace the same path back to your start.${repeatText} Each lap is about ${perLoopText} km, for about ${km} km total.</span>`;
+    items.appendChild(intro);
+  } else if (loopCount > 1) {
     const intro = document.createElement('div');
     intro.className = 'turn-item';
     intro.innerHTML = `<span class="turn-num">i</span><span>Repeat this same loop ${loopCount} times. Each lap is about ${perLoopText} km, for about ${km} km total.</span>`;
@@ -1366,22 +1454,20 @@ function displayRouteInfo(result, target_km, seed, variantIdx, loopCount, loopDi
   document.getElementById('turn-list').classList.add('visible');
 }
 
-function buildGoogleMapsUrl(start, end, waypoints, sameLoop, loopCount) {
+function buildGoogleMapsUrl(start, end, waypoints, routeMeta) {
   const base = 'https://www.google.com/maps/dir/';
-  const wps = waypoints.slice(0, 8).map(w => `${w.location.lat.toFixed(5)},${w.location.lng.toFixed(5)}`);
-  let parts;
+  const sameLoop = routeMeta.sameLoop;
 
-  if (sameLoop && loopCount > 1) {
-    const repeated = [encodeURIComponent(start)];
-    for (let lap = 0; lap < loopCount; lap++) {
-      repeated.push(...wps);
-      repeated.push(encodeURIComponent(end));
-    }
-    parts = repeated.length <= 10 ? repeated : [encodeURIComponent(start), ...wps, encodeURIComponent(end)];
-  } else {
-    parts = [encodeURIComponent(start), ...wps, encodeURIComponent(end)];
+  if (sameLoop && routeMeta.midpoint) {
+    googleMapsUrl = base + [
+      encodeURIComponent(start),
+      `${routeMeta.midpoint.lat.toFixed(5)},${routeMeta.midpoint.lng.toFixed(5)}`
+    ].join('/');
+    return;
   }
 
+  const wps = waypoints.slice(0, 8).map(w => `${w.location.lat.toFixed(5)},${w.location.lng.toFixed(5)}`);
+  const parts = [encodeURIComponent(start), ...wps, encodeURIComponent(end)];
   googleMapsUrl = base + parts.join('/');
 }
 
