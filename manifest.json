@@ -1,0 +1,35 @@
+{
+  "name": "RunRoute — Daily Fresh Routes",
+  "short_name": "RunRoute",
+  "description": "A daily running route generator. Different route every day, no highways, Google Maps integration.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0d0f12",
+  "theme_color": "#0d0f12",
+  "categories": ["health", "fitness", "navigation"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Generate Today's Route",
+      "short_name": "Today's Route",
+      "description": "Instantly generate today's running route",
+      "url": "./?action=generate"
+    }
+  ]
+}
