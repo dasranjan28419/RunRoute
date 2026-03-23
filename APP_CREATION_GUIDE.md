@@ -31,17 +31,18 @@ Main files:
 
 ## Current Routing Model
 
-The app now uses a midpoint-retrace flow for loop runs:
+The app now uses a half-radius retrace search for loop runs:
 
 1. Read the user's total target distance.
 2. Compute the one-way target as half of that distance.
-3. Search for candidate midpoint or "vantage" locations around the start point.
-4. Ask Google Maps for a walking route from the start point to each candidate.
-5. Keep a candidate only when the one-way route is close to the half-distance target.
-6. Present the total run as:
-   - outbound distance to the midpoint
-   - retrace the same path back
-   - total distance = outbound x 2
+3. Create a ring of candidate destinations around the start point using that half-distance radius.
+4. Ask Google Maps for traced walking routes to those ring candidates.
+5. Treat every route turn as a possible turnaround or "vantage" point.
+6. Add route length in increments using each turn step distance.
+7. Convert each cumulative outbound distance into a total retrace distance:
+   - total = outbound x 2
+8. Keep the options that fall within `+/- 2 km` of the user's requested distance.
+9. Present those options in the route selector.
 
 For non-loop routes, the app still supports point-to-point routing.
 
@@ -95,11 +96,11 @@ Remedy:
 - Confirm billing is active
 - Try a nearby landmark on a public road or walkway
 
-### 5. No midpoint route found near the requested distance
+### 5. No retrace option found near the requested distance
 
 Cause:
 
-- There may be no reachable walking route near the requested half-distance target from the chosen start point.
+- There may be no traced turn combination that lands inside the target window from the chosen start point.
 
 Remedy:
 
