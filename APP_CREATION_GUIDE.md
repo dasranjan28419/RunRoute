@@ -2,34 +2,26 @@
 
 ## Purpose
 
-RunRoute is a single-file Progressive Web App that uses Google Maps to generate walking or running routes from a user-entered start point and target distance.
+RunRoute is a single-file Progressive Web App that uses open-source mapping services to generate walking or running routes from a user-entered start point and target distance.
 
 Main files:
 
-- `index.html`: UI, Google Maps integration, routing logic, and route presentation
+- `index.html`: UI, Leaflet/OpenStreetMap rendering, routing logic, and route presentation
 - `manifest.json`: PWA install metadata
 - `sw.js`: service worker for offline caching
 - `icons/`: home-screen icons
 
 ## Setup Instructions
 
-1. Create a Google Cloud project.
-2. Enable these APIs:
-   - Maps JavaScript API
-   - Directions API
-   - Places API
-   - Geocoding API
-3. Create an API key.
-4. Open the app and paste the key into the API key field.
-5. Click `Apply Key & Load Map`.
-6. After a successful load, the app stores that key locally on the device and reuses it automatically on later launches.
-7. Enter:
+1. Open the app.
+2. Let the built-in open-source map initialize, or tap `Reload Open Map` if the map needs a fresh start.
+3. Enter:
    - Pincode or area
    - Start point
    - End point, or enable `Loop route`
    - Distance
    - If start and end are the same, choose `Looped Path` or `Retraced Path`
-8. Click `Generate Today's Route`.
+4. Click `Generate Today's Route`.
 
 Each generated route is stored locally in the browser with its route type and total distance so the user can scroll through previously generated routes and reload a preselected one later.
 
@@ -62,7 +54,7 @@ In the UI, this is exposed through a dedicated `Looped Path` button that appears
    - starts at the given address
    - visits the three snapped rectangle corners only once
    - returns to the same start address
-9. Measure the full closed-loop distance returned by Google Maps.
+9. Measure the full closed-loop distance returned by the routing service.
 10. Compare that distance against the requested target distance.
 11. If multiple rectangle candidates are valid, rank them by distance match and keep the optimal routes first.
 12. Present the best loop options to the user.
@@ -81,7 +73,7 @@ This remains the fallback out-and-back model:
 1. Read the user's total target distance.
 2. Compute the one-way target as half of that distance.
 3. Create a ring of candidate destinations around the start point using that half-distance radius.
-4. Ask Google Maps for traced walking routes to those ring candidates.
+4. Ask the routing service for traced walking routes to those ring candidates.
 5. Treat every route turn as a possible turnaround or "vantage" point.
 6. Add route length in increments using each turn step distance.
 7. Convert each cumulative outbound distance into a total retrace distance:
@@ -112,7 +104,7 @@ When retrace is enabled but the user enters different start and end points, the 
    - corridor waypoints near the direct route
    - lateral detours on either side of the route
    - parks, blocks, and reachable road segments that can extend distance without breaking the final destination
-8. Request Google Maps directions for each candidate path from start to end through those additional waypoints.
+8. Request routed paths for each candidate from start to end through those additional waypoints.
 9. Score each candidate using distance error as the highest-priority metric:
    - primary score: absolute difference from the target distance
    - secondary score: fewer unnecessary detours or awkward backtracking
@@ -124,29 +116,18 @@ In this second case, the route still ends at the user-selected destination, but 
 
 ## Common Errors And Remedies
 
-### 1. `Please enter and apply your Google Maps API key first.`
+### 1. `The open-source map is still loading. Reload it and try again.`
 
 Cause:
 
-- The map script has not been loaded yet.
+- The Leaflet or tile layer setup has not finished yet.
 
 Remedy:
 
-- Paste a valid key starting with `AIza`
-- Click `Apply Key & Load Map`
+- Tap `Reload Open Map`
+- Refresh the app if the map assets were blocked during first load
 
-### 2. `Please enter a valid Google Maps API key (starts with AIza)`
-
-Cause:
-
-- The key field is empty or malformed.
-
-Remedy:
-
-- Copy the full API key from Google Cloud Console
-- Make sure there are no extra spaces before or after the key
-
-### 3. `Could not find "<address>". Try being more specific.`
+### 2. `Could not find "<address>". Try being more specific.`
 
 Cause:
 
@@ -158,21 +139,20 @@ Remedy:
 - Use a more specific landmark or address
 - Avoid abbreviations that are too local or ambiguous
 
-### 4. Map loads, but route generation fails
+### 3. Map loads, but route generation fails
 
 Possible causes:
 
-- Directions API is not enabled
-- Billing is not enabled in Google Cloud
+- The public routing service is temporarily busy
+- The public geocoding service rejected a burst of requests
 - The chosen area does not have a valid walking route
 
 Remedy:
 
-- Enable Directions API
-- Confirm billing is active
+- Wait a moment and try again
 - Try a nearby landmark on a public road or walkway
 
-### 5. No loop, retrace, or exact-distance option found near the requested distance
+### 4. No loop, retrace, or exact-distance option found near the requested distance
 
 Cause:
 
@@ -184,7 +164,7 @@ Remedy:
 - Try a different starting point
 - Use a denser urban area or park entry instead of a vague locality
 
-### 6. Loop route does not exactly match the target distance
+### 5. Loop route does not exactly match the target distance
 
 Cause:
 
@@ -195,7 +175,7 @@ Remedy:
 - The app checks candidates within a tolerance window
 - Try another variant or adjust the target by 0.5 to 1.0 km
 
-### 7. `Open in Google Maps` behaves differently from the in-app route
+### 6. `Open in Google Maps` behaves differently from the in-app route
 
 Cause:
 
@@ -206,7 +186,7 @@ Remedy:
 - Use the in-app map as the primary preview
 - Treat Google Maps as a navigation handoff, not a guaranteed pixel-perfect replay
 
-### 8. Service worker or PWA install issues
+### 7. Service worker or PWA install issues
 
 Cause:
 
@@ -221,22 +201,22 @@ Remedy:
 
 - The app is intentionally lightweight and keeps the main logic inside `index.html`.
 - For same-location loop mode, the app generates enlarged rectangles from the start address, then snaps the other corners to nearby real stop points.
-- Places API can be used to search for candidate midpoints around the half-distance ring.
-- For different start and end points, Places API or waypoint sampling can be used to build candidate detours along the route corridor.
-- Directions API is the final source of truth for actual route length.
+- Reverse geocoding is used to snap rectangle corners to nearby real stop points.
+- For different start and end points, waypoint sampling is used to build candidate detours along the route corridor.
+- OSRM route distance is the final source of truth for actual route length.
 - For retrace routes, the UI should clearly state that the return leg follows the same path back to the start.
 - For closed-loop routes, the UI should clearly state that the route visits the snapped rectangle corners once and returns to the start address.
 - Generated routes are persisted in browser local storage so they can be reloaded from the saved-routes list.
 - The app also supports exporting saved routes to a JSON backup file and importing that file later.
 - On mobile devices, the actual save location is chosen by the user through the browser or OS share/save flow, not by the app automatically.
 - The UI includes author/contact details for Ranjan Das at `das.ranjan28419@gmail.com`.
-- A successfully loaded Google Maps API key is also persisted locally on the device and auto-applied on future launches.
+- The app now runs without a Google API key and can initialize its map immediately with open-source services.
 - On mobile layouts, the live route map is repositioned directly below the generate button, with the `Open in Google Maps` action shown immediately beneath it.
 
 ## Suggested Future Improvements
 
-- Persist API key locally with explicit user consent
 - Add named route modes: `Retrace`, `Loop`, `Point-to-point`
 - Show midpoint marker details on the map
 - Let users choose stricter or looser distance tolerance
 - Cache successful route candidates for faster retries
+- Move public routing/geocoding behind a small proxy or self-hosted service for better reliability and rate-limit control

@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 
 <!-- SEO / share -->
-<meta name="description" content="A daily running route generator. Different route every day, no highways, Google Maps integration.">
+<meta name="description" content="A daily running route generator with fresh routes every day, open-source maps, and mobile-friendly saved route history.">
 <meta name="author" content="Ranjan Das">
 <meta name="contact" content="das.ranjan28419@gmail.com">
 <meta property="og:title" content="RunRoute">
@@ -23,6 +23,8 @@
 <meta name="x-author-seal" content="U2FsdGVkX1/k3j1E9SnWjE+7aiLouzgQx1tltxxe/w4=">
 
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
     --bg: #0d0f12;
@@ -964,9 +966,8 @@
 
       <!-- API Key -->
       <div class="apikey-banner">
-        <p>⚠️ Enter your Google Maps API key to enable live maps, routing, and navigation. Enable: Maps JS API, Directions API, Places API.</p>
-        <input type="text" id="api-key-input" placeholder="AIza..." style="margin-bottom:8px">
-        <button onclick="applyApiKey()" style="background:var(--warn);color:#0d0f12;border:none;border-radius:6px;padding:7px 14px;font-weight:700;font-size:12px;cursor:pointer;width:100%">Apply Key & Load Map</button>
+        <p>Open-source mode is active. RunRoute now uses OpenStreetMap-based services for maps, search, and routing so no Google API key is required.</p>
+        <button onclick="initializeOpenSourceMap()" style="background:var(--warn);color:#0d0f12;border:none;border-radius:6px;padding:7px 14px;font-weight:700;font-size:12px;cursor:pointer;width:100%">Reload Open Map</button>
       </div>
 
       <div class="install-help" id="install-help-card">
@@ -1192,7 +1193,9 @@
 
 <script>
 // ─── State ───────────────────────────────────────────────────────────────────
-let map, directionsService, directionsRenderer, geocoder, placesService;
+let map, directionsRenderer;
+let routeLine = null;
+let routeMarkers = [];
 let mapsLoaded = false;
 let currentRoute = null;
 let currentWaypoints = [];
@@ -1210,14 +1213,23 @@ const MAX_SAVED_ROUTES = 30;
 const BACKUP_PROMPT_KEY = 'runroute.backupPromptSeen.v1';
 let backupPromptSeen = false;
 let deferredInstallPrompt = null;
-const MAPS_API_KEY_STORAGE_KEY = 'runroute.googleMapsApiKey.v1';
-let pendingMapsApiKey = '';
 let desktopMapParent = null;
 let desktopMapNextSibling = null;
 let desktopGmapsParent = null;
 let desktopGmapsNextSibling = null;
 let desktopSwitcherParent = null;
 let desktopSwitcherNextSibling = null;
+const ROUTING_SERVICE_URL = 'https://router.project-osrm.org';
+const GEOCODING_SERVICE_URL = 'https://nominatim.openstreetmap.org';
+const TILE_LAYER_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TILE_LAYER_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const ROUTE_EVAL_CONCURRENCY = 4;
+const RETRACE_CANDIDATE_LIMIT = 24;
+const LOOP_CANDIDATE_LIMIT = 12;
+const DEFAULT_MAP_CENTER = { lat: 37.7749, lng: -122.4194 };
+const geocodeCache = new Map();
+const reverseGeocodeCache = new Map();
+const routeRequestCache = new Map();
 
 // ─── Date / Seed ─────────────────────────────────────────────────────────────
 function getDaySeed() {
@@ -1258,11 +1270,14 @@ function moveNodeBefore(node, parent, nextSibling) {
 }
 
 function refreshMapSizeSoon() {
-  if (!mapsLoaded || !map || !window.google || !google.maps || !google.maps.event) return;
+  if (!mapsLoaded || !map) return;
   requestAnimationFrame(() => {
-    google.maps.event.trigger(map, 'resize');
-    if (currentRoute && directionsRenderer) {
-      directionsRenderer.setDirections(currentRoute);
+    map.invalidateSize();
+    if (routeLine) {
+      map.fitBounds(routeLine.getBounds(), {
+        padding: [26, 26],
+        maxZoom: 16,
+      });
     }
   });
 }
@@ -1293,31 +1308,6 @@ function syncResponsiveRouteLayout() {
   }
 
   refreshMapSizeSoon();
-}
-
-function readStoredMapsApiKey() {
-  try {
-    return localStorage.getItem(MAPS_API_KEY_STORAGE_KEY) || '';
-  } catch (err) {
-    return '';
-  }
-}
-
-function writeStoredMapsApiKey(key) {
-  try {
-    if (key) {
-      localStorage.setItem(MAPS_API_KEY_STORAGE_KEY, key);
-    } else {
-      localStorage.removeItem(MAPS_API_KEY_STORAGE_KEY);
-    }
-  } catch (err) {
-    console.warn('[RunRoute] Could not persist API key:', err);
-  }
-}
-
-function clearStoredMapsApiKey() {
-  pendingMapsApiKey = '';
-  writeStoredMapsApiKey('');
 }
 
 function isIosDevice() {
@@ -1827,74 +1817,119 @@ function setLoading(on) {
   btnText.textContent = on ? 'Finding Route...' : "Generate Today's Route";
 }
 
-// ─── Google Maps Init ─────────────────────────────────────────────────────────
-function applyApiKey() {
-  const key = document.getElementById('api-key-input').value.trim();
-  if (!key || !key.startsWith('AIza')) {
-    showStatus('Please enter a valid Google Maps API key (starts with AIza)', 'error'); return;
-  }
-  loadGoogleMapsScript(key, { autoLoaded: false });
-}
+// ─── Open-source map init / rendering ────────────────────────────────────────
+function makeMarker(point, options = {}) {
+  const {
+    radius = 6,
+    color = '#c8f35a',
+    label = '',
+  } = options;
 
-function loadGoogleMapsScript(key, options = {}) {
-  const { autoLoaded = false } = options;
-  if (mapsLoaded) return;
-  pendingMapsApiKey = key;
-  showStatus('Loading Google Maps…', 'info');
-  const script = document.createElement('script');
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places,geometry&callback=initMap`;
-  script.async = true; script.defer = true;
-  script.onerror = function() {
-    if (pendingMapsApiKey === key) {
-      clearStoredMapsApiKey();
-    }
-    if (autoLoaded) {
-      showStatus('Saved Google Maps API key could not be loaded. Enter and apply a valid key.', 'warn');
-    } else {
-      showStatus('Could not load Google Maps with that API key. Please try another key.', 'error');
-    }
-  };
-  document.head.appendChild(script);
-  window._gmapsKey = key;
-}
-
-window.gm_authFailure = function() {
-  clearStoredMapsApiKey();
-  showStatus('Saved Google Maps API key was rejected. Enter and apply a valid key.', 'error');
-};
-
-window.initMap = function() {
-  mapsLoaded = true;
-  if (pendingMapsApiKey) {
-    writeStoredMapsApiKey(pendingMapsApiKey);
-    document.getElementById('api-key-input').value = pendingMapsApiKey;
-  }
-  map = new google.maps.Map(document.getElementById('map'), {
-    center: { lat: 37.7749, lng: -122.4194 },
-    zoom: 13,
-    styles: darkMapStyles,
-    disableDefaultUI: false,
-    zoomControl: true,
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: true,
+  const marker = L.circleMarker([point.lat, point.lng], {
+    radius,
+    color,
+    weight: 2,
+    fillColor: color,
+    fillOpacity: 0.95,
   });
-  directionsService = new google.maps.DirectionsService();
-  directionsRenderer = new google.maps.DirectionsRenderer({
-    polylineOptions: {
-      strokeColor: '#c8f35a',
-      strokeWeight: 5,
-      strokeOpacity: 0.9,
+
+  if (label) {
+    marker.bindTooltip(label, { direction: 'top', offset: [0, -4] });
+  }
+
+  return marker;
+}
+
+function clearRenderedRoute() {
+  if (!map) return;
+
+  if (routeLine) {
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
+
+  routeMarkers.forEach(marker => {
+    if (map.hasLayer(marker)) {
+      map.removeLayer(marker);
+    }
+  });
+  routeMarkers = [];
+}
+
+function renderRouteOnMap(result) {
+  if (!map || !result || !result.routes || !result.routes.length) return;
+
+  const route = result.routes[0];
+  const coordinates = Array.isArray(route.geometry?.coordinates) ? route.geometry.coordinates : [];
+  if (!coordinates.length) return;
+
+  clearRenderedRoute();
+
+  routeLine = L.polyline(
+    coordinates.map(point => [point.lat, point.lng]),
+    {
+      color: '#c8f35a',
+      weight: 5,
+      opacity: 0.9,
+      lineCap: 'round',
+      lineJoin: 'round',
+    }
+  ).addTo(map);
+
+  const markerSpecs = Array.isArray(route.markerPoints) ? route.markerPoints : [];
+  routeMarkers = markerSpecs.map(markerSpec => makeMarker(markerSpec.location, markerSpec.options).addTo(map));
+
+  map.fitBounds(routeLine.getBounds(), {
+    padding: [26, 26],
+    maxZoom: 16,
+  });
+}
+
+function createDirectionsRenderer() {
+  return {
+    setDirections(result) {
+      renderRouteOnMap(result);
     },
-    suppressMarkers: false,
-  });
-  directionsRenderer.setMap(map);
-  geocoder = new google.maps.Geocoder();
-  placesService = new google.maps.places.PlacesService(map);
-  document.getElementById('map-empty').classList.add('hidden');
-  clearStatus();
-  showStatus('Map loaded! Enter your details and generate a route.', 'info');
-};
+    set(key, value) {
+      if (key === 'directions' && value == null) {
+        clearRenderedRoute();
+      }
+    },
+  };
+}
+
+function initializeOpenSourceMap() {
+  try {
+    if (!window.L) {
+      throw new Error('Leaflet did not load, so the map cannot start.');
+    }
+
+    if (!map) {
+      map = L.map('map', {
+        zoomControl: true,
+        attributionControl: true,
+      }).setView([DEFAULT_MAP_CENTER.lat, DEFAULT_MAP_CENTER.lng], 13);
+
+      L.tileLayer(TILE_LAYER_URL, {
+        attribution: TILE_LAYER_ATTRIBUTION,
+        maxZoom: 19,
+      }).addTo(map);
+    } else {
+      map.setView([DEFAULT_MAP_CENTER.lat, DEFAULT_MAP_CENTER.lng], 13);
+      clearRenderedRoute();
+    }
+
+    directionsRenderer = createDirectionsRenderer();
+    mapsLoaded = true;
+    document.getElementById('map-empty').classList.add('hidden');
+    clearStatus();
+    showStatus('OpenStreetMap mode is ready. Enter your details and generate a route.', 'info');
+    refreshMapSizeSoon();
+  } catch (err) {
+    mapsLoaded = false;
+    showStatus(err.message || 'Could not start the open-source map.', 'error');
+  }
+}
 
 function clamp(val, min, max) {
   return Math.min(max, Math.max(min, val));
@@ -2013,29 +2048,44 @@ function buildFullTraceStops(routeMeta) {
   return [...outboundStops, ...retraceStops];
 }
 
-function geocodeAddress(address) {
-  return new Promise((resolve, reject) => {
-    geocoder.geocode({ address }, function(results, status) {
-      if (status !== 'OK' || !results.length) {
-        reject(new Error(`Could not find "${address}". Try being more specific.`));
-        return;
-      }
-      const loc = results[0].geometry.location;
-      resolve({ lat: loc.lat(), lng: loc.lng() });
-    });
+async function fetchJson(url, fallbackErrorMessage) {
+  const response = await fetch(url, {
+    headers: {
+      'Accept': 'application/json',
+    },
   });
+
+  if (!response.ok) {
+    throw new Error(fallbackErrorMessage || `Request failed with status ${response.status}.`);
+  }
+
+  return response.json();
 }
 
-function reverseGeocodeLocation(location) {
-  return new Promise((resolve, reject) => {
-    geocoder.geocode({ location }, function(results, status) {
-      if (status !== 'OK' || !results.length) {
-        reject(new Error('Could not find a nearby stop point for one of the loop corners.'));
-        return;
-      }
-      resolve(results);
-    });
-  });
+function buildNominatimTypes(entry) {
+  const types = new Set();
+  const klass = entry.class || '';
+  const type = entry.type || '';
+
+  if (klass === 'building' || ['house', 'residential', 'apartments'].includes(type)) {
+    types.add('premise');
+    types.add('street_address');
+  }
+  if (klass === 'place' || ['suburb', 'hamlet', 'village', 'neighbourhood'].includes(type)) {
+    types.add('subpremise');
+  }
+  if (klass === 'highway' || ['road', 'pedestrian', 'footway', 'cycleway', 'path'].includes(type)) {
+    types.add('route');
+  }
+  if (['amenity', 'tourism', 'leisure', 'shop'].includes(klass)) {
+    types.add('point_of_interest');
+    types.add('establishment');
+  }
+  if (!types.size) {
+    types.add('route');
+  }
+
+  return [...types];
 }
 
 function getLatLngLiteral(location) {
@@ -2060,6 +2110,54 @@ function scoreReverseGeocodeResult(result) {
   return 6;
 }
 
+async function geocodeAddress(address) {
+  const key = normalizeAddressValue(address);
+  if (geocodeCache.has(key)) {
+    return geocodeCache.get(key);
+  }
+
+  const url = `${GEOCODING_SERVICE_URL}/search?format=jsonv2&limit=1&q=${encodeURIComponent(address)}`;
+  const results = await fetchJson(url, `Could not find "${address}". Try being more specific.`);
+  if (!Array.isArray(results) || !results.length) {
+    throw new Error(`Could not find "${address}". Try being more specific.`);
+  }
+
+  const resolved = {
+    lat: Number(results[0].lat),
+    lng: Number(results[0].lon),
+  };
+  geocodeCache.set(key, resolved);
+  return resolved;
+}
+
+async function reverseGeocodeLocation(location) {
+  const point = getLatLngLiteral(location);
+  const key = roundedPointKey(point, 5);
+  if (reverseGeocodeCache.has(key)) {
+    return reverseGeocodeCache.get(key);
+  }
+
+  const url = `${GEOCODING_SERVICE_URL}/reverse?format=jsonv2&lat=${encodeURIComponent(point.lat)}&lon=${encodeURIComponent(point.lng)}&zoom=18&addressdetails=1`;
+  const result = await fetchJson(url, 'Could not find a nearby stop point for one of the loop corners.');
+  if (!result || !result.lat || !result.lon) {
+    throw new Error('Could not find a nearby stop point for one of the loop corners.');
+  }
+
+  const normalizedResult = [{
+    formatted_address: result.display_name || 'Nearby stop',
+    types: buildNominatimTypes(result),
+    geometry: {
+      location: {
+        lat: Number(result.lat),
+        lng: Number(result.lon),
+      },
+    },
+  }];
+
+  reverseGeocodeCache.set(key, normalizedResult);
+  return normalizedResult;
+}
+
 async function snapLoopStopPoint(target, cache) {
   const key = roundedPointKey(target, 5);
   if (cache.has(key)) {
@@ -2077,12 +2175,204 @@ async function snapLoopStopPoint(target, cache) {
   return snapped;
 }
 
-function requestDirectionsRoute(request) {
-  return new Promise((resolve) => {
-    directionsService.route(request, function(result, status) {
-      resolve({ result, status });
+function formatRoadName(step) {
+  return step.name || step.ref || step.destinations || '';
+}
+
+function buildOsrmInstruction(step) {
+  const maneuver = step.maneuver || {};
+  const modifier = maneuver.modifier || '';
+  const roadName = formatRoadName(step);
+  const modifierText = modifier ? ` ${modifier}` : '';
+
+  switch (maneuver.type) {
+    case 'depart':
+      return roadName ? `Start on ${roadName}` : 'Start';
+    case 'arrive':
+      return 'Arrive at destination';
+    case 'roundabout':
+    case 'rotary':
+      return roadName ? `Enter the roundabout toward ${roadName}` : 'Enter the roundabout';
+    case 'exit roundabout':
+      return roadName ? `Exit the roundabout onto ${roadName}` : 'Exit the roundabout';
+    case 'fork':
+      return roadName ? `Keep${modifierText} toward ${roadName}` : `Keep${modifierText}`.trim();
+    case 'merge':
+      return roadName ? `Merge onto ${roadName}` : 'Merge';
+    case 'on ramp':
+      return roadName ? `Take the ramp onto ${roadName}` : 'Take the ramp';
+    case 'off ramp':
+      return roadName ? `Take the exit onto ${roadName}` : 'Take the exit';
+    case 'end of road':
+    case 'turn':
+      return roadName ? `Turn${modifierText} onto ${roadName}` : `Turn${modifierText}`.trim();
+    case 'new name':
+    case 'continue':
+    case 'notification':
+    default:
+      return roadName ? `Continue${modifierText} on ${roadName}` : `Continue${modifierText}`.trim();
+  }
+}
+
+function normalizeStepEndLocation(step) {
+  const coordinates = step.geometry && Array.isArray(step.geometry.coordinates)
+    ? step.geometry.coordinates
+    : [];
+  const end = coordinates[coordinates.length - 1] || step.maneuver?.location;
+  if (!Array.isArray(end) || end.length < 2) {
+    return null;
+  }
+
+  return {
+    lat: Number(end[1]),
+    lng: Number(end[0]),
+  };
+}
+
+function normalizeRouteMarkers(points) {
+  if (!points.length) return [];
+
+  const markers = [];
+  const origin = points[0];
+  const destination = points[points.length - 1];
+  const sameStartEnd = haversineKm(origin, destination) < 0.03;
+
+  markers.push({
+    location: origin,
+    options: {
+      radius: 7,
+      color: '#c8f35a',
+      label: sameStartEnd ? 'Start / Finish' : 'Start',
+    },
+  });
+
+  points.slice(1, -1).forEach((point, index) => {
+    markers.push({
+      location: point,
+      options: {
+        radius: 5,
+        color: '#5af3c8',
+        label: `Stop ${index + 1}`,
+      },
     });
   });
+
+  if (!sameStartEnd) {
+    markers.push({
+      location: destination,
+      options: {
+        radius: 7,
+        color: '#f3c05a',
+        label: 'Finish',
+      },
+    });
+  }
+
+  return markers;
+}
+
+function normalizeOsrmResult(data, resolvedPoints) {
+  const route = data.routes && data.routes[0];
+  if (!route) return null;
+
+  const geometryCoordinates = Array.isArray(route.geometry?.coordinates)
+    ? route.geometry.coordinates.map(([lng, lat]) => ({ lat: Number(lat), lng: Number(lng) }))
+    : [];
+
+  const legs = (route.legs || []).map((leg, legIndex) => {
+    const legStart = resolvedPoints[legIndex];
+    const legEnd = resolvedPoints[legIndex + 1];
+    const steps = (leg.steps || []).map(step => {
+      const endLocation = normalizeStepEndLocation(step) || legEnd;
+      const instruction = buildOsrmInstruction(step);
+      return {
+        distance: { value: Number(step.distance || 0) },
+        duration: { value: Number(step.duration || 0) },
+        instructions: instruction,
+        html_instructions: instruction,
+        end_location: endLocation,
+      };
+    });
+
+    return {
+      distance: { value: Number(leg.distance || 0) },
+      duration: { value: Number(leg.duration || 0) },
+      steps,
+      start_location: legStart,
+      end_location: legEnd,
+    };
+  });
+
+  return {
+    routes: [{
+      distance: { value: Number(route.distance || 0) },
+      duration: { value: Number(route.duration || 0) },
+      geometry: {
+        coordinates: geometryCoordinates,
+      },
+      legs,
+      markerPoints: normalizeRouteMarkers(resolvedPoints),
+    }],
+  };
+}
+
+async function resolveRouteLocation(location) {
+  if (!location) {
+    throw new Error('Route location is missing.');
+  }
+  if (typeof location === 'string') {
+    return geocodeAddress(location);
+  }
+  if (typeof location === 'object' && location.location) {
+    return getLatLngLiteral(location.location);
+  }
+  return getLatLngLiteral(location);
+}
+
+function buildRouteRequestCacheKey(resolvedPoints, avoidHighways) {
+  return `${avoidHighways ? 'avoid' : 'allow'}::${resolvedPoints.map(point => roundedPointKey(point, 5)).join('::')}`;
+}
+
+async function requestDirectionsRoute(request) {
+  try {
+    const waypoints = Array.isArray(request.waypoints) ? request.waypoints : [];
+    const resolvedPoints = [
+      await resolveRouteLocation(request.origin),
+      ...await Promise.all(waypoints.map(waypoint => resolveRouteLocation(waypoint.location))),
+      await resolveRouteLocation(request.destination),
+    ];
+
+    const cacheKey = buildRouteRequestCacheKey(resolvedPoints, Boolean(request.avoidHighways));
+    if (routeRequestCache.has(cacheKey)) {
+      return {
+        result: routeRequestCache.get(cacheKey),
+        status: 'OK',
+      };
+    }
+
+    const coordinates = resolvedPoints
+      .map(point => `${point.lng},${point.lat}`)
+      .join(';');
+    const url = `${ROUTING_SERVICE_URL}/route/v1/foot/${coordinates}?alternatives=false&overview=full&steps=true&geometries=geojson`;
+    const data = await fetchJson(url, 'Could not calculate a route for those points.');
+
+    if (!data || !Array.isArray(data.routes) || !data.routes.length) {
+      return { result: null, status: 'ZERO_RESULTS' };
+    }
+
+    const normalized = normalizeOsrmResult(data, resolvedPoints);
+    if (!normalized) {
+      return { result: null, status: 'ZERO_RESULTS' };
+    }
+
+    routeRequestCache.set(cacheKey, normalized);
+    return { result: normalized, status: 'OK' };
+  } catch (err) {
+    if (err && /Could not find "/.test(err.message || '')) {
+      throw err;
+    }
+    return { result: null, status: 'ERROR', error: err };
+  }
 }
 
 function clearRouteDisplay() {
@@ -2155,7 +2445,7 @@ async function loadSavedRoute(routeId) {
   const route = savedRoutes.find(saved => saved.id === routeId);
   if (!route) return;
   if (!mapsLoaded) {
-    showStatus('Please enter and apply your Google Maps API key first before loading a saved route.', 'error');
+    showStatus('The open-source map is not ready yet. Reload the map and try again.', 'error');
     return;
   }
 
@@ -2169,20 +2459,14 @@ async function loadSavedRoute(routeId) {
           origin: route.startFull,
           destination: route.turnaround,
           optimizeWaypoints: false,
-          travelMode: google.maps.TravelMode.WALKING,
           avoidHighways: route.avoidHighways,
-          avoidFerries: true,
-          unitSystem: google.maps.UnitSystem.METRIC,
           waypoints: [],
         }
       : {
           origin: route.startFull,
           destination: route.endFull,
           optimizeWaypoints: false,
-          travelMode: google.maps.TravelMode.WALKING,
           avoidHighways: route.avoidHighways,
-          avoidFerries: true,
-          unitSystem: google.maps.UnitSystem.METRIC,
           waypoints: deserializeWaypoints(route.waypoints),
         };
 
@@ -2322,6 +2606,7 @@ function buildRectangleLoopCandidates(origin, perLoopTargetKm, seed) {
           candidates.push({
             longEdgeKm,
             shortEdgeKm,
+            estimatedLoopKm: 2 * (longEdgeKm + shortEdgeKm),
             heading: (longBearing + 360) % 360,
             turnSign,
             cornerTargets: [corner1, corner2, corner3],
@@ -2331,7 +2616,9 @@ function buildRectangleLoopCandidates(origin, perLoopTargetKm, seed) {
     });
   });
 
-  return candidates;
+  return candidates.sort((a, b) =>
+    Math.abs(a.estimatedLoopKm - perLoopTargetKm) - Math.abs(b.estimatedLoopKm - perLoopTargetKm)
+  );
 }
 
 function extractTurnOptionsFromRoute(result, loopCount, targetKm, oneWayTargetKm, sourceKey) {
@@ -2355,8 +2642,8 @@ function extractTurnOptionsFromRoute(result, loopCount, targetKm, oneWayTargetKm
         turnIndex,
         turnInstruction: stripHtml(step.instructions),
         turnaround: {
-          lat: endLocation.lat(),
-          lng: endLocation.lng(),
+          lat: typeof endLocation.lat === 'function' ? endLocation.lat() : endLocation.lat,
+          lng: typeof endLocation.lng === 'function' ? endLocation.lng() : endLocation.lng,
         },
         outboundDistanceKm,
         oneWayTargetKm,
@@ -2439,27 +2726,43 @@ function selectBalancedRouteOptions(options, targetKm) {
   };
 }
 
-async function finalizeTurnOptions(startFull, options, targetKm, oneWayTargetKm, avoidHighways, loopCount) {
-  const finalized = [];
+async function runWithConcurrency(items, limit, worker) {
+  const safeLimit = Math.max(1, limit || 1);
+  const results = new Array(items.length);
+  let nextIndex = 0;
 
-  for (const option of options) {
+  async function consume() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex++;
+      try {
+        results[currentIndex] = await worker(items[currentIndex], currentIndex);
+      } catch (err) {
+        results[currentIndex] = null;
+      }
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(safeLimit, items.length) }, () => consume());
+  await Promise.all(workers);
+  return results;
+}
+
+async function finalizeTurnOptions(startFull, options, targetKm, oneWayTargetKm, avoidHighways, loopCount) {
+  const finalized = (await runWithConcurrency(options, ROUTE_EVAL_CONCURRENCY, async option => {
     const response = await requestDirectionsRoute({
       origin: startFull,
       destination: option.turnaround,
       optimizeWaypoints: false,
-      travelMode: google.maps.TravelMode.WALKING,
       avoidHighways,
-      avoidFerries: true,
-      unitSystem: google.maps.UnitSystem.METRIC,
       waypoints: [],
     });
 
-    if (response.status !== 'OK') continue;
+    if (response.status !== 'OK' || !response.result) return null;
 
     const outboundDistanceKm = getRouteDistanceKm(response.result);
     const totalDistanceKm = outboundDistanceKm * 2 * loopCount;
     const turnTrace = extractTurnTraceFromResult(response.result);
-    finalized.push({
+    return {
       ...option,
       result: response.result,
       outboundDistanceKm,
@@ -2468,8 +2771,8 @@ async function finalizeTurnOptions(startFull, options, targetKm, oneWayTargetKm,
       oneWayDeltaKm: Math.abs(outboundDistanceKm - oneWayTargetKm),
       perLoopDistanceKm: outboundDistanceKm * 2,
       turnTrace,
-    });
-  }
+    };
+  })).filter(Boolean);
 
   return finalized.sort((a, b) =>
     a.deltaKm - b.deltaKm ||
@@ -2481,42 +2784,43 @@ async function finalizeTurnOptions(startFull, options, targetKm, oneWayTargetKm,
 async function findRetraceRouteOptions(startFull, origin, targetKm, variantSeed, avoidHighways, loopCount) {
   const perLoopTargetKm = targetKm / loopCount;
   const oneWayTargetKm = perLoopTargetKm / 2;
-  const candidateDestinations = buildHalfRadiusCandidates(origin, oneWayTargetKm, variantSeed);
+  const candidateDestinations = buildHalfRadiusCandidates(origin, oneWayTargetKm, variantSeed)
+    .slice(0, RETRACE_CANDIDATE_LIMIT);
   const rawTurnOptions = [];
   let closestRaw = null;
 
   const baseRequest = {
     origin: startFull,
     optimizeWaypoints: false,
-    travelMode: google.maps.TravelMode.WALKING,
     avoidHighways,
-    avoidFerries: true,
-    unitSystem: google.maps.UnitSystem.METRIC,
   };
 
-  for (let i = 0; i < candidateDestinations.length; i++) {
-    const candidate = candidateDestinations[i];
+  const responseItems = await runWithConcurrency(candidateDestinations, ROUTE_EVAL_CONCURRENCY, async (candidate, index) => {
     const response = await requestDirectionsRoute({
       ...baseRequest,
       destination: candidate.location,
       waypoints: [],
     });
-    if (response.status !== 'OK') continue;
+    if (response.status !== 'OK' || !response.result) return null;
 
     const turnOptions = extractTurnOptionsFromRoute(
       response.result,
       loopCount,
       targetKm,
       oneWayTargetKm,
-      `ring-${i + 1}`
+      `ring-${index + 1}`
     );
+    return turnOptions;
+  });
+
+  responseItems.filter(Boolean).forEach(turnOptions => {
     turnOptions.forEach(option => {
       rawTurnOptions.push(option);
       if (!closestRaw || option.deltaKm < closestRaw.deltaKm) {
         closestRaw = option;
       }
     });
-  }
+  });
 
   if (!rawTurnOptions.length) {
     return { options: [], closestDistanceKm: null };
@@ -2572,8 +2876,8 @@ function dedupeLoopOptions(options) {
 
 async function findLoopRouteOptions(startFull, origin, targetKm, variantSeed, avoidHighways, loopCount) {
   const perLoopTargetKm = targetKm / loopCount;
-  const candidateLoops = buildRectangleLoopCandidates(origin, perLoopTargetKm, variantSeed);
-  const evaluated = [];
+  const candidateLoops = buildRectangleLoopCandidates(origin, perLoopTargetKm, variantSeed)
+    .slice(0, LOOP_CANDIDATE_LIMIT);
   let closest = null;
   const snapCache = new Map();
 
@@ -2581,27 +2885,19 @@ async function findLoopRouteOptions(startFull, origin, targetKm, variantSeed, av
     origin: startFull,
     destination: startFull,
     optimizeWaypoints: false,
-    travelMode: google.maps.TravelMode.WALKING,
     avoidHighways,
-    avoidFerries: true,
-    unitSystem: google.maps.UnitSystem.METRIC,
   };
 
-  for (let i = 0; i < candidateLoops.length; i++) {
-    const candidate = candidateLoops[i];
-    const snappedStops = [];
-
-    for (const target of candidate.cornerTargets) {
+  const evaluated = (await runWithConcurrency(candidateLoops, ROUTE_EVAL_CONCURRENCY, async candidate => {
+    const snappedStops = await Promise.all(candidate.cornerTargets.map(async target => {
       try {
-        snappedStops.push(await snapLoopStopPoint(target, snapCache));
+        return await snapLoopStopPoint(target, snapCache);
       } catch (err) {
-        snappedStops.length = 0;
-        break;
+        return null;
       }
-    }
+    }));
 
-    if (!snappedStops.length) continue;
-
+    if (snappedStops.some(stop => !stop)) return null;
     const response = await requestDirectionsRoute({
       ...baseRequest,
       waypoints: snappedStops.map(stop => ({
@@ -2609,7 +2905,7 @@ async function findLoopRouteOptions(startFull, origin, targetKm, variantSeed, av
         stopover: true,
       })),
     });
-    if (response.status !== 'OK') continue;
+    if (response.status !== 'OK' || !response.result) return null;
 
     const perLoopDistanceKm = getRouteDistanceKm(response.result);
     const totalDistanceKm = perLoopDistanceKm * loopCount;
@@ -2629,11 +2925,11 @@ async function findLoopRouteOptions(startFull, origin, targetKm, variantSeed, av
       routeSignature: snappedStops.map(stop => roundedPointKey(stop.location)).join('|'),
     };
 
-    evaluated.push(option);
     if (!closest || option.deltaKm < closest.deltaKm) {
       closest = option;
     }
-  }
+    return option;
+  })).filter(Boolean);
 
   if (!evaluated.length) {
     return {
@@ -2670,10 +2966,7 @@ async function findBestPointToPointRouteMatch(startFull, endFull, origin, destin
     origin: startFull,
     destination: endFull,
     optimizeWaypoints: false,
-    travelMode: google.maps.TravelMode.WALKING,
     avoidHighways,
-    avoidFerries: true,
-    unitSystem: google.maps.UnitSystem.METRIC,
   };
 
   const directResponse = await requestDirectionsRoute({ ...baseRequest, waypoints: [] });
@@ -2700,24 +2993,31 @@ async function findBestPointToPointRouteMatch(startFull, endFull, origin, destin
   }
 
   const candidates = buildRouteCandidates(origin, destination, perLoopTargetKm, variantSeed, directKm);
-
-  for (const waypoints of candidates) {
+  const evaluatedCandidates = await runWithConcurrency(candidates, ROUTE_EVAL_CONCURRENCY, async waypoints => {
     const response = await requestDirectionsRoute({ ...baseRequest, waypoints });
-    lastStatus = response.status;
-    if (response.status !== 'OK') continue;
+    if (response.status !== 'OK' || !response.result) {
+      lastStatus = response.status || lastStatus;
+      return null;
+    }
 
     const distanceKm = getRouteDistanceKm(response.result);
     const totalDistanceKm = distanceKm * loopCount;
     const deltaKm = Math.abs(totalDistanceKm - targetKm);
+    return {
+      result: response.result,
+      waypoints,
+      distanceKm,
+      totalDistanceKm,
+      perLoopDistanceKm: distanceKm,
+      deltaKm,
+    };
+  });
 
-    if (!best || deltaKm < best.deltaKm) {
-      best = { result: response.result, waypoints, distanceKm, totalDistanceKm, perLoopDistanceKm: distanceKm, deltaKm };
+  evaluatedCandidates.filter(Boolean).forEach(candidate => {
+    if (!best || candidate.deltaKm < best.deltaKm) {
+      best = candidate;
     }
-
-    if (deltaKm <= ROUTE_TOLERANCE_KM) {
-      return { ...best, matched: true };
-    }
-  }
+  });
 
   if (best) {
     return { ...best, matched: best.deltaKm <= ROUTE_TOLERANCE_KM };
@@ -2729,7 +3029,7 @@ async function findBestPointToPointRouteMatch(startFull, endFull, origin, destin
 // ─── Main route generator ─────────────────────────────────────────────────────
 function generateRoute() {
   if (!mapsLoaded) {
-    showStatus('Please enter and apply your Google Maps API key first.', 'error'); return;
+    showStatus('The open-source map is still loading. Reload it and try again.', 'error'); return;
   }
   const pincode = document.getElementById('pincode').value.trim();
   const start = document.getElementById('start-point').value.trim();
@@ -3134,26 +3434,6 @@ function openInGoogleMaps() {
   if (googleMapsUrl) window.open(googleMapsUrl, '_blank');
 }
 
-// ─── Dark map styles ──────────────────────────────────────────────────────────
-const darkMapStyles = [
-  { elementType: "geometry", stylers: [{ color: "#1d2128" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#1d2128" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#6b7385" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a2f3a" }] },
-  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9ca3af" }] },
-  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#3a3040" }] },
-  { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#9ca3af" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#131820" }] },
-  { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#4a5568" }] },
-  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#1a2030" }] },
-  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#1a2a1a" }] },
-  { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#3d6b3d" }] },
-  { featureType: "transit", elementType: "geometry", stylers: [{ color: "#232830" }] },
-  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#2a2f3a" }] },
-  { featureType: "administrative.land_parcel", elementType: "geometry.stroke", stylers: [{ color: "#2a2f3a" }] },
-  { featureType: "administrative.land_parcel", elementType: "labels.text.fill", stylers: [{ color: "#4a5568" }] },
-];
-
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.getElementById('date-badge').textContent = getTodayStr();
 backupPromptSeen = readBackupPromptSeen();
@@ -3161,11 +3441,7 @@ savedRoutes = readSavedRoutes();
 renderSavedRoutes();
 renderInstallHelp();
 syncResponsiveRouteLayout();
-const storedMapsApiKey = readStoredMapsApiKey();
-if (storedMapsApiKey) {
-  document.getElementById('api-key-input').value = storedMapsApiKey;
-  loadGoogleMapsScript(storedMapsApiKey, { autoLoaded: true });
-}
+initializeOpenSourceMap();
 
 // ─── Service Worker registration ─────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
