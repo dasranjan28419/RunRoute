@@ -231,6 +231,7 @@ Remedy:
 - On mobile devices, the actual save location is chosen by the user through the browser or OS share/save flow, not by the app automatically.
 - The UI includes author/contact details for Ranjan Das at `das.ranjan28419@gmail.com`.
 - A successfully loaded Google Maps API key is also persisted locally on the device and auto-applied on future launches.
+- On mobile layouts, the live route map is repositioned directly below the generate button, with the `Open in Google Maps` action shown immediately beneath it.
 
 ## Suggested Future Improvements
 

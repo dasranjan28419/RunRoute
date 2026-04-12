@@ -537,6 +537,10 @@
     display: none;
   }
 
+  .mobile-route-preview {
+    display: none;
+  }
+
   /* Route switcher */
   .route-switcher {
     display: none;
@@ -852,6 +856,91 @@
   .app-credit a:hover {
     text-decoration: underline;
   }
+
+  @media (max-width: 900px) {
+    body {
+      min-height: 100dvh;
+    }
+    header {
+      padding: 16px 18px;
+      gap: 10px;
+    }
+    .header-badge {
+      display: none;
+    }
+    .layout {
+      display: block;
+      height: auto;
+      min-height: 0;
+    }
+    .sidebar {
+      border-right: none;
+    }
+    .sidebar-inner {
+      padding: 18px 16px 28px;
+    }
+    .map-panel {
+      min-height: 320px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      background: var(--surface);
+    }
+    #map {
+      min-height: 320px;
+      height: 320px;
+    }
+    .map-topbar {
+      padding: 10px 12px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+    .map-topbar-badges {
+      margin-left: 0;
+      flex-wrap: wrap;
+    }
+    .mobile-route-preview {
+      display: block;
+      margin-bottom: 12px;
+    }
+    .mobile-route-preview:empty {
+      display: none;
+    }
+    .mobile-route-preview .map-panel {
+      margin-bottom: 10px;
+    }
+    .mobile-route-preview .btn-maps {
+      margin-bottom: 10px;
+    }
+    .mobile-route-preview .route-switcher {
+      margin-bottom: 0;
+    }
+    .route-stats {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    header h1 {
+      font-size: 22px;
+    }
+    .distance-display .val {
+      font-size: 36px;
+    }
+    .pref-grid {
+      grid-template-columns: 1fr;
+    }
+    .route-mode-toggle {
+      grid-template-columns: 1fr;
+    }
+    .route-stats {
+      grid-template-columns: 1fr;
+    }
+    #map {
+      min-height: 280px;
+      height: 280px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -970,6 +1059,8 @@
         <span class="spinner" id="spinner"></span>
         <span id="btn-text">Generate Today's Route</span>
       </button>
+
+      <div class="mobile-route-preview" id="mobile-route-preview"></div>
 
       <!-- Route Switcher (visible after first generation) -->
       <div class="route-switcher" id="route-switcher">
@@ -1121,6 +1212,12 @@ let backupPromptSeen = false;
 let deferredInstallPrompt = null;
 const MAPS_API_KEY_STORAGE_KEY = 'runroute.googleMapsApiKey.v1';
 let pendingMapsApiKey = '';
+let desktopMapParent = null;
+let desktopMapNextSibling = null;
+let desktopGmapsParent = null;
+let desktopGmapsNextSibling = null;
+let desktopSwitcherParent = null;
+let desktopSwitcherNextSibling = null;
 
 // ─── Date / Seed ─────────────────────────────────────────────────────────────
 function getDaySeed() {
@@ -1145,6 +1242,57 @@ function getExportFileName() {
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const dd = String(now.getDate()).padStart(2, '0');
   return `runroute-routes-${yyyy}-${mm}-${dd}.json`;
+}
+
+function isMobileLayout() {
+  return window.innerWidth <= 900;
+}
+
+function moveNodeBefore(node, parent, nextSibling) {
+  if (!node || !parent) return;
+  if (nextSibling && nextSibling.parentNode === parent) {
+    parent.insertBefore(node, nextSibling);
+  } else {
+    parent.appendChild(node);
+  }
+}
+
+function refreshMapSizeSoon() {
+  if (!mapsLoaded || !map || !window.google || !google.maps || !google.maps.event) return;
+  requestAnimationFrame(() => {
+    google.maps.event.trigger(map, 'resize');
+    if (currentRoute && directionsRenderer) {
+      directionsRenderer.setDirections(currentRoute);
+    }
+  });
+}
+
+function syncResponsiveRouteLayout() {
+  const preview = document.getElementById('mobile-route-preview');
+  const mapPanel = document.querySelector('.map-panel');
+  const gmapsButton = document.getElementById('btn-gmaps');
+  const switcher = document.getElementById('route-switcher');
+
+  if (!desktopMapParent) {
+    desktopMapParent = mapPanel.parentNode;
+    desktopMapNextSibling = mapPanel.nextSibling;
+    desktopGmapsParent = gmapsButton.parentNode;
+    desktopGmapsNextSibling = gmapsButton.nextSibling;
+    desktopSwitcherParent = switcher.parentNode;
+    desktopSwitcherNextSibling = switcher.nextSibling;
+  }
+
+  if (isMobileLayout()) {
+    preview.appendChild(mapPanel);
+    preview.appendChild(gmapsButton);
+    preview.appendChild(switcher);
+  } else {
+    moveNodeBefore(mapPanel, desktopMapParent, desktopMapNextSibling);
+    moveNodeBefore(gmapsButton, desktopGmapsParent, desktopGmapsNextSibling);
+    moveNodeBefore(switcher, desktopSwitcherParent, desktopSwitcherNextSibling);
+  }
+
+  refreshMapSizeSoon();
 }
 
 function readStoredMapsApiKey() {
@@ -1652,6 +1800,10 @@ window.addEventListener('appinstalled', function() {
   deferredInstallPrompt = null;
   renderInstallHelp();
   showStatus('RunRoute is installed on this device.', 'info');
+});
+
+window.addEventListener('resize', function() {
+  syncResponsiveRouteLayout();
 });
 
 function togglePref(el) { el.classList.toggle('active'); }
@@ -3008,6 +3160,7 @@ backupPromptSeen = readBackupPromptSeen();
 savedRoutes = readSavedRoutes();
 renderSavedRoutes();
 renderInstallHelp();
+syncResponsiveRouteLayout();
 const storedMapsApiKey = readStoredMapsApiKey();
 if (storedMapsApiKey) {
   document.getElementById('api-key-input').value = storedMapsApiKey;
