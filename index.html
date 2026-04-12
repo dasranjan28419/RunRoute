@@ -16,6 +16,8 @@
 
 <!-- SEO / share -->
 <meta name="description" content="A daily running route generator. Different route every day, no highways, Google Maps integration.">
+<meta name="author" content="Ranjan Das">
+<meta name="contact" content="das.ranjan28419@gmail.com">
 <meta property="og:title" content="RunRoute">
 <meta property="og:description" content="Fresh running routes every day. No highways.">
 <meta name="x-author-seal" content="U2FsdGVkX1/k3j1E9SnWjE+7aiLouzgQx1tltxxe/w4=">
@@ -198,6 +200,39 @@
     grid-template-columns: 1fr 1fr;
     gap: 8px;
     margin-top: 4px;
+  }
+  .route-mode-group {
+    display: none;
+  }
+  .route-mode-group.visible {
+    display: block;
+  }
+  .route-mode-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .route-mode-btn {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    font-family: 'Barlow', sans-serif;
+  }
+  .route-mode-btn:hover {
+    border-color: var(--muted);
+    color: var(--text);
+  }
+  .route-mode-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(200,243,90,0.07);
   }
   .pref-chip {
     background: var(--card);
@@ -451,6 +486,56 @@
     font-size: 12px;
     border-color: rgba(243,192,90,0.3);
   }
+  .install-help {
+    background: rgba(90,243,200,0.06);
+    border: 1px solid rgba(90,243,200,0.16);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 20px;
+  }
+  .install-help-title {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.1em;
+    color: var(--accent2);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .install-help-copy {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .install-help-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .btn-install {
+    background: var(--accent2);
+    color: #0d0f12;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: 'Barlow', sans-serif;
+    transition: all 0.2s;
+  }
+  .btn-install:hover {
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+  }
+  .btn-install.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-install[hidden] {
+    display: none;
+  }
 
   /* Route switcher */
   .route-switcher {
@@ -608,6 +693,165 @@
   .route-plan-row:last-child { border-bottom: none; }
   .route-plan-label { color: var(--muted); }
   .route-plan-value { color: var(--text); text-align: right; }
+
+  .saved-routes {
+    margin-top: 14px;
+    display: none;
+  }
+  .saved-routes.visible {
+    display: block;
+  }
+  .saved-routes-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .saved-routes-count {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .saved-routes-tools {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .saved-route-tool {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 7px 10px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.04em;
+    transition: all 0.2s;
+  }
+  .saved-route-tool:hover {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+  .saved-route-tool.warn:hover {
+    border-color: var(--warn);
+    color: var(--warn);
+  }
+  .backup-callout {
+    display: none;
+    margin-bottom: 10px;
+    background: rgba(90,243,200,0.06);
+    border: 1px solid rgba(90,243,200,0.16);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .backup-callout.visible {
+    display: block;
+  }
+  .backup-callout-text {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+  .backup-callout-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .saved-route-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+  .saved-route-card {
+    width: 100%;
+    text-align: left;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text);
+  }
+  .saved-route-card:hover {
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 1px rgba(90,243,200,0.12) inset;
+  }
+  .saved-route-card.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(200,243,90,0.16) inset;
+    background: rgba(200,243,90,0.05);
+  }
+  .saved-route-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .saved-route-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .saved-route-distance {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .saved-route-line {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  .saved-route-line strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .saved-route-empty {
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--card);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .app-credit {
+    margin-top: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .app-credit-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .app-credit-line {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .app-credit a {
+    color: var(--accent2);
+    text-decoration: none;
+  }
+  .app-credit a:hover {
+    text-decoration: underline;
+  }
 </style>
 </head>
 <body>
@@ -636,6 +880,17 @@
         <button onclick="applyApiKey()" style="background:var(--warn);color:#0d0f12;border:none;border-radius:6px;padding:7px 14px;font-weight:700;font-size:12px;cursor:pointer;width:100%">Apply Key & Load Map</button>
       </div>
 
+      <div class="install-help" id="install-help-card">
+        <div class="install-help-title" id="install-help-title">Install App</div>
+        <div class="install-help-copy" id="install-help-copy">
+          Install RunRoute on your phone for a full-screen app experience.
+        </div>
+        <div class="install-help-actions">
+          <button type="button" class="btn-install" id="btn-install-app" onclick="installApp()" hidden>Install App</button>
+          <button type="button" class="btn-install secondary" id="btn-install-refresh" onclick="renderInstallHelp()">Refresh Help</button>
+        </div>
+      </div>
+
       <!-- Location -->
       <div class="section-label">📍 Location</div>
 
@@ -653,7 +908,7 @@
         <label class="field-label">End Point</label>
         <input type="text" id="end-point" placeholder="End address (or same as start)">
         <label class="same-location">
-          <input type="checkbox" id="same-loc" onchange="toggleSameLocation(this)">
+          <input type="checkbox" id="same-loc" onchange="toggleSameLocation()">
           <span>Loop route — start = end</span>
         </label>
       </div>
@@ -663,6 +918,17 @@
         <input type="number" id="loop-count" min="1" max="6" step="1" value="1" disabled>
         <div style="font-size:12px;color:var(--muted);margin-top:8px">
           Repeat the same loop to reach your total distance target.
+        </div>
+      </div>
+
+      <div class="field-group route-mode-group" id="same-address-route-mode-group">
+        <label class="field-label">Route Type</label>
+        <div class="route-mode-toggle">
+          <button type="button" class="route-mode-btn active" id="route-mode-loop" onclick="setSameAddressRouteMode('loop')">Looped Path</button>
+          <button type="button" class="route-mode-btn" id="route-mode-retrace" onclick="setSameAddressRouteMode('retrace')">Retraced Path</button>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">
+          Visible only when the start and end destination are the same.
         </div>
       </div>
 
@@ -688,9 +954,6 @@
       <div class="pref-grid">
         <div class="pref-chip active" id="pref-no-highway" onclick="togglePref(this)">
           <span class="chip-icon">🚫</span> No highways
-        </div>
-        <div class="pref-chip active" id="pref-loop" onclick="togglePref(this)">
-          <span class="chip-icon">🔄</span> Avoid backtrack
         </div>
         <div class="pref-chip" id="pref-parks" onclick="togglePref(this)">
           <span class="chip-icon">🌳</span> Prefer parks
@@ -733,6 +996,28 @@
       </button>
 
       <div id="status-msg" class="status-msg"></div>
+
+      <div class="saved-routes" id="saved-routes">
+        <div class="backup-callout" id="backup-callout">
+          <div class="backup-callout-text">
+            Save a backup file to Files or Downloads on this device so you can import your routes later on the same device or a new one.
+          </div>
+          <div class="backup-callout-actions">
+            <button type="button" class="saved-route-tool" onclick="exportSavedRoutes()">Export Backup</button>
+            <button type="button" class="saved-route-tool warn" onclick="dismissBackupCallout()">Dismiss</button>
+          </div>
+        </div>
+        <div class="saved-routes-head">
+          <div class="turn-list-title" style="margin-bottom:0">Saved Routes</div>
+          <div class="saved-routes-tools">
+            <div class="saved-routes-count" id="saved-routes-count">0 stored</div>
+            <button type="button" class="saved-route-tool" onclick="exportSavedRoutes()">Export</button>
+            <button type="button" class="saved-route-tool" onclick="triggerImportSavedRoutes()">Import</button>
+          </div>
+        </div>
+        <div class="saved-route-list" id="saved-route-list"></div>
+        <input type="file" id="saved-routes-import" accept="application/json,.json" style="display:none">
+      </div>
 
       <!-- Route Stats (hidden until route generated) -->
       <div id="route-stats" style="display:none">
@@ -782,6 +1067,14 @@
         <div id="turn-items"></div>
       </div>
 
+      <div class="app-credit">
+        <div class="turn-list-title" style="margin-bottom:6px">Author</div>
+        <div class="app-credit-name">Ranjan Das</div>
+        <div class="app-credit-line">
+          Contact: <a href="mailto:das.ranjan28419@gmail.com">das.ranjan28419@gmail.com</a>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -819,6 +1112,15 @@ let currentLoopCount = 1;
 const MAX_VARIANTS = 5;
 let lastStartFull = '', lastEndFull = '';
 let lastRouteOptions = null;
+let savedRoutes = [];
+let currentSavedRouteId = '';
+const SAVED_ROUTES_KEY = 'runroute.savedRoutes.v1';
+const MAX_SAVED_ROUTES = 30;
+const BACKUP_PROMPT_KEY = 'runroute.backupPromptSeen.v1';
+let backupPromptSeen = false;
+let deferredInstallPrompt = null;
+const MAPS_API_KEY_STORAGE_KEY = 'runroute.googleMapsApiKey.v1';
+let pendingMapsApiKey = '';
 
 // ─── Date / Seed ─────────────────────────────────────────────────────────────
 function getDaySeed() {
@@ -837,6 +1139,405 @@ function getTodayStr() {
   return new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
+function getExportFileName() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  return `runroute-routes-${yyyy}-${mm}-${dd}.json`;
+}
+
+function readStoredMapsApiKey() {
+  try {
+    return localStorage.getItem(MAPS_API_KEY_STORAGE_KEY) || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+function writeStoredMapsApiKey(key) {
+  try {
+    if (key) {
+      localStorage.setItem(MAPS_API_KEY_STORAGE_KEY, key);
+    } else {
+      localStorage.removeItem(MAPS_API_KEY_STORAGE_KEY);
+    }
+  } catch (err) {
+    console.warn('[RunRoute] Could not persist API key:', err);
+  }
+}
+
+function clearStoredMapsApiKey() {
+  pendingMapsApiKey = '';
+  writeStoredMapsApiKey('');
+}
+
+function isIosDevice() {
+  const ua = navigator.userAgent || navigator.vendor || '';
+  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function isAndroidDevice() {
+  return /Android/i.test(navigator.userAgent || '');
+}
+
+function isStandaloneApp() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function renderInstallHelp() {
+  const title = document.getElementById('install-help-title');
+  const copy = document.getElementById('install-help-copy');
+  const installBtn = document.getElementById('btn-install-app');
+
+  if (isStandaloneApp()) {
+    title.textContent = 'App Installed';
+    copy.textContent = 'RunRoute is already installed on this device. You can launch it from your home screen like a regular app.';
+    installBtn.hidden = true;
+    return;
+  }
+
+  if (deferredInstallPrompt) {
+    title.textContent = 'Install RunRoute';
+    copy.textContent = 'Your browser can install RunRoute as an app. Tap Install App to add it to your home screen with a standalone app experience.';
+    installBtn.hidden = false;
+    return;
+  }
+
+  if (isIosDevice()) {
+    title.textContent = 'Install on iPhone or iPad';
+    copy.textContent = 'Open this app in Safari, tap Share, then choose Add to Home Screen. Once added, RunRoute opens like an app from your home screen.';
+    installBtn.hidden = true;
+    return;
+  }
+
+  if (isAndroidDevice()) {
+    title.textContent = 'Install on Android';
+    copy.textContent = 'Open the browser menu and choose Install app or Add to Home screen. Some Android browsers show the install option automatically after a few visits.';
+    installBtn.hidden = true;
+    return;
+  }
+
+  title.textContent = 'Install App';
+  copy.textContent = 'Use your browser menu to install or add RunRoute to your home screen if your browser supports installed web apps.';
+  installBtn.hidden = true;
+}
+
+async function installApp() {
+  if (!deferredInstallPrompt) {
+    renderInstallHelp();
+    return;
+  }
+
+  const prompt = deferredInstallPrompt;
+  deferredInstallPrompt = null;
+  prompt.prompt();
+  try {
+    await prompt.userChoice;
+  } catch (err) {
+    // Ignore dismissed prompt errors and just refresh the install state.
+  }
+  renderInstallHelp();
+}
+
+function formatSavedRouteTime(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'Saved route';
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function roundCoord(value) {
+  return Math.round(value * 100000) / 100000;
+}
+
+function normalizeLatLng(point) {
+  if (!point) return null;
+  return {
+    lat: roundCoord(typeof point.lat === 'function' ? point.lat() : point.lat),
+    lng: roundCoord(typeof point.lng === 'function' ? point.lng() : point.lng),
+  };
+}
+
+function serializeWaypoints(waypoints) {
+  return (waypoints || []).map(waypoint => ({
+    location: normalizeLatLng(waypoint.location),
+    stopover: waypoint.stopover !== false,
+  }));
+}
+
+function deserializeWaypoints(waypoints) {
+  return (waypoints || []).map(waypoint => ({
+    location: { lat: waypoint.location.lat, lng: waypoint.location.lng },
+    stopover: waypoint.stopover !== false,
+  }));
+}
+
+function getSavedRouteModeLabel(route) {
+  if (route.sameLoop && route.routeStyle === 'retrace') return 'Retraced Path';
+  if (route.sameLoop && route.routeStyle === 'loop') return 'Looped Path';
+  return 'Point-to-point';
+}
+
+function buildSavedRouteSignature(route) {
+  const waypointPart = (route.waypoints || [])
+    .map(waypoint => `${waypoint.location.lat},${waypoint.location.lng}`)
+    .join('|');
+  const turnaroundPart = route.turnaround
+    ? `${route.turnaround.lat},${route.turnaround.lng}`
+    : '';
+  return [
+    route.startFull,
+    route.endFull,
+    route.routeStyle,
+    route.loopCount,
+    waypointPart,
+    turnaroundPart,
+  ].join('::');
+}
+
+function readSavedRoutes() {
+  try {
+    const raw = localStorage.getItem(SAVED_ROUTES_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function readBackupPromptSeen() {
+  try {
+    return localStorage.getItem(BACKUP_PROMPT_KEY) === '1';
+  } catch (err) {
+    return false;
+  }
+}
+
+function writeBackupPromptSeen(seen = true) {
+  backupPromptSeen = seen;
+  try {
+    localStorage.setItem(BACKUP_PROMPT_KEY, seen ? '1' : '0');
+  } catch (err) {
+    console.warn('[RunRoute] Could not persist backup prompt state:', err);
+  }
+}
+
+function writeSavedRoutes() {
+  try {
+    localStorage.setItem(SAVED_ROUTES_KEY, JSON.stringify(savedRoutes.slice(0, MAX_SAVED_ROUTES)));
+  } catch (err) {
+    console.warn('[RunRoute] Could not persist saved routes:', err);
+  }
+}
+
+function renderSavedRoutes() {
+  const section = document.getElementById('saved-routes');
+  const list = document.getElementById('saved-route-list');
+  const count = document.getElementById('saved-routes-count');
+  const backupCallout = document.getElementById('backup-callout');
+
+  count.textContent = `${savedRoutes.length} stored`;
+  list.innerHTML = '';
+  backupCallout.classList.toggle('visible', !backupPromptSeen);
+
+  if (!savedRoutes.length) {
+    section.classList.add('visible');
+    const empty = document.createElement('div');
+    empty.className = 'saved-route-empty';
+    empty.textContent = 'Generated routes will appear here so you can reload them later.';
+    list.appendChild(empty);
+    return;
+  }
+
+  section.classList.add('visible');
+  savedRoutes.forEach(route => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'saved-route-card' + (route.id === currentSavedRouteId ? ' active' : '');
+    card.onclick = function() { loadSavedRoute(route.id); };
+
+    const fromLabel = route.startFull;
+    const toLabel = route.sameLoop ? route.startFull : route.endFull;
+
+    const top = document.createElement('div');
+    top.className = 'saved-route-top';
+    const name = document.createElement('div');
+    name.className = 'saved-route-name';
+    name.textContent = getSavedRouteModeLabel(route);
+    const distance = document.createElement('div');
+    distance.className = 'saved-route-distance';
+    distance.textContent = `${route.totalDistanceKm.toFixed(1)} km`;
+    top.appendChild(name);
+    top.appendChild(distance);
+
+    const fromLine = document.createElement('div');
+    fromLine.className = 'saved-route-line';
+    const fromStrong = document.createElement('strong');
+    fromStrong.textContent = 'From: ';
+    fromLine.appendChild(fromStrong);
+    fromLine.appendChild(document.createTextNode(fromLabel));
+
+    const toLine = document.createElement('div');
+    toLine.className = 'saved-route-line';
+    const toStrong = document.createElement('strong');
+    toStrong.textContent = 'To: ';
+    toLine.appendChild(toStrong);
+    toLine.appendChild(document.createTextNode(toLabel));
+
+    const timeLine = document.createElement('div');
+    timeLine.className = 'saved-route-line';
+    timeLine.textContent = formatSavedRouteTime(route.createdAt);
+
+    card.appendChild(top);
+    card.appendChild(fromLine);
+    card.appendChild(toLine);
+    card.appendChild(timeLine);
+    list.appendChild(card);
+  });
+}
+
+function rememberRoute(startFull, endFull, targetKm, routeMeta, waypoints) {
+  const route = {
+    id: `saved-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: new Date().toISOString(),
+    startFull,
+    endFull,
+    targetKm,
+    sameLoop: Boolean(routeMeta.sameLoop),
+    routeStyle: routeMeta.routeStyle || 'point-to-point',
+    loopCount: routeMeta.loopCount || 1,
+    avoidHighways: Boolean(routeMeta.avoidHighways),
+    totalDistanceKm: routeMeta.totalDistanceKm || 0,
+    perLoopDistanceKm: routeMeta.perLoopDistanceKm || routeMeta.totalDistanceKm || 0,
+    outboundDistanceKm: routeMeta.outboundDistanceKm || null,
+    oneWayTargetKm: routeMeta.oneWayTargetKm || null,
+    turnaround: normalizeLatLng(routeMeta.midpoint),
+    turnInstruction: routeMeta.turnInstruction || '',
+    turnIndex: routeMeta.turnIndex || null,
+    longEdgeKm: routeMeta.longEdgeKm || null,
+    shortEdgeKm: routeMeta.shortEdgeKm || null,
+    stopLabels: Array.isArray(routeMeta.stopLabels) ? routeMeta.stopLabels : [],
+    waypoints: serializeWaypoints(waypoints),
+  };
+
+  const signature = buildSavedRouteSignature(route);
+  const existingIdx = savedRoutes.findIndex(saved => buildSavedRouteSignature(saved) === signature);
+  if (existingIdx >= 0) {
+    route.id = savedRoutes[existingIdx].id;
+    savedRoutes.splice(existingIdx, 1);
+  }
+
+  savedRoutes.unshift(route);
+  savedRoutes = savedRoutes.slice(0, MAX_SAVED_ROUTES);
+  currentSavedRouteId = route.id;
+  writeSavedRoutes();
+  renderSavedRoutes();
+}
+
+function sanitizeImportedRoute(route) {
+  if (!route || typeof route !== 'object') return null;
+  if (!route.startFull || !route.endFull) return null;
+
+  const normalized = {
+    id: route.id || `saved-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: route.createdAt || new Date().toISOString(),
+    startFull: String(route.startFull),
+    endFull: String(route.endFull),
+    targetKm: Number(route.targetKm || route.totalDistanceKm || 0),
+    sameLoop: Boolean(route.sameLoop),
+    routeStyle: route.routeStyle || 'point-to-point',
+    loopCount: Math.max(1, parseInt(route.loopCount || 1, 10)),
+    avoidHighways: Boolean(route.avoidHighways),
+    totalDistanceKm: Number(route.totalDistanceKm || 0),
+    perLoopDistanceKm: Number(route.perLoopDistanceKm || route.totalDistanceKm || 0),
+    outboundDistanceKm: route.outboundDistanceKm == null ? null : Number(route.outboundDistanceKm),
+    oneWayTargetKm: route.oneWayTargetKm == null ? null : Number(route.oneWayTargetKm),
+    turnaround: route.turnaround ? normalizeLatLng(route.turnaround) : null,
+    turnInstruction: route.turnInstruction || '',
+    turnIndex: route.turnIndex == null ? null : Number(route.turnIndex),
+    longEdgeKm: route.longEdgeKm == null ? null : Number(route.longEdgeKm),
+    shortEdgeKm: route.shortEdgeKm == null ? null : Number(route.shortEdgeKm),
+    stopLabels: Array.isArray(route.stopLabels) ? route.stopLabels.map(String) : [],
+    waypoints: serializeWaypoints(deserializeWaypoints(route.waypoints || [])),
+  };
+
+  if (!Number.isFinite(normalized.totalDistanceKm) || normalized.totalDistanceKm <= 0) {
+    return null;
+  }
+  return normalized;
+}
+
+function dismissBackupCallout() {
+  writeBackupPromptSeen(true);
+  renderSavedRoutes();
+}
+
+async function exportSavedRoutes() {
+  if (!savedRoutes.length) {
+    showStatus('There are no saved routes to export yet.', 'warn');
+    return;
+  }
+
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    routes: savedRoutes,
+  };
+  const json = JSON.stringify(payload, null, 2);
+  const fileName = getExportFileName();
+  const blob = new Blob([json], { type: 'application/json' });
+  const file = new File([blob], fileName, { type: 'application/json' });
+
+  try {
+    if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        title: 'RunRoute Saved Routes',
+        text: 'Backup of saved RunRoute routes',
+        files: [file],
+      });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    dismissBackupCallout();
+    showStatus('Saved routes backup exported. Choose Files or Downloads on your device to keep it.', 'info');
+  } catch (err) {
+    if (err && err.name === 'AbortError') return;
+    showStatus('Could not export the saved routes backup.', 'error');
+  }
+}
+
+function triggerImportSavedRoutes() {
+  document.getElementById('saved-routes-import').click();
+}
+
+function mergeImportedRoutes(importedRoutes) {
+  const merged = [...savedRoutes];
+  importedRoutes.forEach(route => {
+    const signature = buildSavedRouteSignature(route);
+    const existingIdx = merged.findIndex(saved => buildSavedRouteSignature(saved) === signature);
+    if (existingIdx >= 0) {
+      merged.splice(existingIdx, 1);
+    }
+    merged.unshift(route);
+  });
+  savedRoutes = merged.slice(0, MAX_SAVED_ROUTES);
+  writeSavedRoutes();
+  dismissBackupCallout();
+  renderSavedRoutes();
+}
+
 // ─── UI helpers ──────────────────────────────────────────────────────────────
 function updateDistance(val) {
   const km = parseFloat(val);
@@ -844,34 +1545,113 @@ function updateDistance(val) {
   document.getElementById('dist-miles').textContent = (km * 0.621371).toFixed(1) + ' mi';
 }
 
-function toggleSameLocation(cb) {
+function normalizeAddressValue(value) {
+  return (value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function isSameAddressSelected() {
+  if (document.getElementById('same-loc').checked) return true;
+  const startValue = normalizeAddressValue(document.getElementById('start-point').value);
+  const endValue = normalizeAddressValue(document.getElementById('end-point').value);
+  return Boolean(startValue) && startValue === endValue;
+}
+
+function setSameAddressRouteMode(mode) {
+  const safeMode = mode === 'retrace' ? 'retrace' : 'loop';
+  document.getElementById('route-mode-loop').classList.toggle('active', safeMode === 'loop');
+  document.getElementById('route-mode-retrace').classList.toggle('active', safeMode === 'retrace');
+}
+
+function getSameAddressRouteMode() {
+  return document.getElementById('route-mode-retrace').classList.contains('active') ? 'retrace' : 'loop';
+}
+
+function refreshSameAddressControls() {
   const ep = document.getElementById('end-point');
+  const sameLocChecked = document.getElementById('same-loc').checked;
   const loopCountInput = document.getElementById('loop-count');
   const loopCountGroup = document.getElementById('loop-count-group');
-  if (cb.checked) {
+  const routeModeGroup = document.getElementById('same-address-route-mode-group');
+
+  if (sameLocChecked) {
     ep.value = document.getElementById('start-point').value;
     ep.disabled = true;
     ep.style.opacity = '0.5';
-    loopCountInput.disabled = false;
-    loopCountGroup.style.opacity = '1';
   } else {
     ep.disabled = false;
     ep.style.opacity = '1';
+  }
+
+  if (isSameAddressSelected()) {
+    loopCountInput.disabled = false;
+    loopCountGroup.style.opacity = '1';
+    routeModeGroup.classList.add('visible');
+  } else {
     loopCountInput.disabled = true;
     loopCountInput.value = '1';
     loopCountGroup.style.opacity = '0.5';
+    routeModeGroup.classList.remove('visible');
   }
+}
+
+function toggleSameLocation() {
+  refreshSameAddressControls();
 }
 
 document.getElementById('start-point').addEventListener('input', function() {
   if (document.getElementById('same-loc').checked) {
     document.getElementById('end-point').value = this.value;
   }
+  refreshSameAddressControls();
+});
+
+document.getElementById('end-point').addEventListener('input', function() {
+  refreshSameAddressControls();
 });
 
 document.getElementById('loop-count').addEventListener('input', function() {
   const value = Math.round(parseFloat(this.value) || 1);
   this.value = String(clamp(value, 1, 6));
+});
+
+document.getElementById('saved-routes-import').addEventListener('change', async function(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const routes = Array.isArray(parsed) ? parsed : parsed.routes;
+    if (!Array.isArray(routes)) {
+      throw new Error('Backup file format is not valid.');
+    }
+
+    const sanitized = routes
+      .map(sanitizeImportedRoute)
+      .filter(Boolean);
+
+    if (!sanitized.length) {
+      throw new Error('No valid saved routes were found in that backup file.');
+    }
+
+    mergeImportedRoutes(sanitized);
+    showStatus(`Imported ${sanitized.length} saved route${sanitized.length === 1 ? '' : 's'}.`, 'info');
+  } catch (err) {
+    showStatus(err.message || 'Could not import the saved routes backup.', 'error');
+  }
+});
+
+window.addEventListener('beforeinstallprompt', event => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  renderInstallHelp();
+});
+
+window.addEventListener('appinstalled', function() {
+  deferredInstallPrompt = null;
+  renderInstallHelp();
+  showStatus('RunRoute is installed on this device.', 'info');
 });
 
 function togglePref(el) { el.classList.toggle('active'); }
@@ -901,21 +1681,42 @@ function applyApiKey() {
   if (!key || !key.startsWith('AIza')) {
     showStatus('Please enter a valid Google Maps API key (starts with AIza)', 'error'); return;
   }
-  loadGoogleMapsScript(key);
+  loadGoogleMapsScript(key, { autoLoaded: false });
 }
 
-function loadGoogleMapsScript(key) {
+function loadGoogleMapsScript(key, options = {}) {
+  const { autoLoaded = false } = options;
   if (mapsLoaded) return;
+  pendingMapsApiKey = key;
   showStatus('Loading Google Maps…', 'info');
   const script = document.createElement('script');
   script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places,geometry&callback=initMap`;
   script.async = true; script.defer = true;
+  script.onerror = function() {
+    if (pendingMapsApiKey === key) {
+      clearStoredMapsApiKey();
+    }
+    if (autoLoaded) {
+      showStatus('Saved Google Maps API key could not be loaded. Enter and apply a valid key.', 'warn');
+    } else {
+      showStatus('Could not load Google Maps with that API key. Please try another key.', 'error');
+    }
+  };
   document.head.appendChild(script);
   window._gmapsKey = key;
 }
 
+window.gm_authFailure = function() {
+  clearStoredMapsApiKey();
+  showStatus('Saved Google Maps API key was rejected. Enter and apply a valid key.', 'error');
+};
+
 window.initMap = function() {
   mapsLoaded = true;
+  if (pendingMapsApiKey) {
+    writeStoredMapsApiKey(pendingMapsApiKey);
+    document.getElementById('api-key-input').value = pendingMapsApiKey;
+  }
   map = new google.maps.Map(document.getElementById('map'), {
     center: { lat: 37.7749, lng: -122.4194 },
     zoom: 13,
@@ -1051,6 +1852,10 @@ function buildFullTraceStops(routeMeta) {
     return trace.slice(0, -1);
   }
 
+  if (routeMeta.routeStyle !== 'retrace') {
+    return [];
+  }
+
   const outboundStops = trace.map(point => ({ lat: point.lat, lng: point.lng }));
   const retraceStops = outboundStops.slice(0, -1).reverse();
   return [...outboundStops, ...retraceStops];
@@ -1067,6 +1872,57 @@ function geocodeAddress(address) {
       resolve({ lat: loc.lat(), lng: loc.lng() });
     });
   });
+}
+
+function reverseGeocodeLocation(location) {
+  return new Promise((resolve, reject) => {
+    geocoder.geocode({ location }, function(results, status) {
+      if (status !== 'OK' || !results.length) {
+        reject(new Error('Could not find a nearby stop point for one of the loop corners.'));
+        return;
+      }
+      resolve(results);
+    });
+  });
+}
+
+function getLatLngLiteral(location) {
+  return {
+    lat: typeof location.lat === 'function' ? location.lat() : location.lat,
+    lng: typeof location.lng === 'function' ? location.lng() : location.lng,
+  };
+}
+
+function roundedPointKey(point, precision = 4) {
+  return `${point.lat.toFixed(precision)},${point.lng.toFixed(precision)}`;
+}
+
+function scoreReverseGeocodeResult(result) {
+  const types = result.types || [];
+  if (types.includes('premise')) return 0;
+  if (types.includes('street_address')) return 1;
+  if (types.includes('subpremise')) return 2;
+  if (types.includes('point_of_interest')) return 3;
+  if (types.includes('establishment')) return 4;
+  if (types.includes('route')) return 5;
+  return 6;
+}
+
+async function snapLoopStopPoint(target, cache) {
+  const key = roundedPointKey(target, 5);
+  if (cache.has(key)) {
+    return cache.get(key);
+  }
+
+  const results = await reverseGeocodeLocation(target);
+  const best = [...results].sort((a, b) => scoreReverseGeocodeResult(a) - scoreReverseGeocodeResult(b))[0];
+  const snapped = {
+    location: getLatLngLiteral(best.geometry.location),
+    label: best.formatted_address || 'Nearby stop',
+    types: best.types || [],
+  };
+  cache.set(key, snapped);
+  return snapped;
 }
 
 function requestDirectionsRoute(request) {
@@ -1090,6 +1946,140 @@ function clearRouteDisplay() {
   document.getElementById('turn-list').classList.remove('visible');
   document.getElementById('turn-items').innerHTML = '';
   if (directionsRenderer) directionsRenderer.set('directions', null);
+}
+
+function applySavedRouteInputs(route) {
+  document.getElementById('start-point').value = route.startFull || '';
+  document.getElementById('same-loc').checked = Boolean(route.sameLoop);
+  document.getElementById('end-point').value = route.sameLoop ? route.startFull : (route.endFull || '');
+  document.getElementById('pincode').value = '';
+  document.getElementById('loop-count').value = String(route.loopCount || 1);
+  document.getElementById('pref-no-highway').classList.toggle('active', Boolean(route.avoidHighways));
+  setSameAddressRouteMode(route.routeStyle === 'retrace' ? 'retrace' : 'loop');
+  const sliderValue = clamp(parseFloat(route.targetKm || route.totalDistanceKm || 5), 1, 42);
+  document.getElementById('dist-slider').value = String(sliderValue);
+  updateDistance(sliderValue);
+  refreshSameAddressControls();
+}
+
+function showResolvedRoute(startFull, endFull, result, targetKm, variantIdx, routeMeta, waypoints, options = {}) {
+  const {
+    showSwitcher = false,
+    persist = true,
+    savedRouteId = '',
+  } = options;
+
+  currentWaypoints = waypoints || [];
+  currentRouteMeta = {
+    ...routeMeta,
+    turnTrace: Array.isArray(routeMeta.turnTrace) && routeMeta.turnTrace.length
+      ? routeMeta.turnTrace
+      : extractTurnTraceFromResult(result),
+  };
+  directionsRenderer.setDirections(result);
+  currentRoute = result;
+  displayRouteInfo(result, targetKm, getDaySeed(), variantIdx, currentRouteMeta);
+  buildGoogleMapsUrl(startFull, endFull, currentWaypoints, currentRouteMeta);
+  document.getElementById('btn-gmaps').disabled = false;
+  document.getElementById('map-topbar').classList.add('visible');
+
+  if (showSwitcher) {
+    updateVariantUI(variantIdx);
+    document.getElementById('route-switcher').classList.add('visible');
+  } else {
+    document.getElementById('route-switcher').classList.remove('visible');
+    document.getElementById('badge-variant').textContent = 'Saved';
+  }
+
+  if (persist) {
+    rememberRoute(startFull, endFull, targetKm, currentRouteMeta, currentWaypoints);
+  } else {
+    currentSavedRouteId = savedRouteId || currentSavedRouteId;
+    renderSavedRoutes();
+  }
+}
+
+async function loadSavedRoute(routeId) {
+  const route = savedRoutes.find(saved => saved.id === routeId);
+  if (!route) return;
+  if (!mapsLoaded) {
+    showStatus('Please enter and apply your Google Maps API key first before loading a saved route.', 'error');
+    return;
+  }
+
+  setLoading(true);
+  clearStatus();
+  try {
+    applySavedRouteInputs(route);
+
+    const request = route.sameLoop && route.routeStyle === 'retrace'
+      ? {
+          origin: route.startFull,
+          destination: route.turnaround,
+          optimizeWaypoints: false,
+          travelMode: google.maps.TravelMode.WALKING,
+          avoidHighways: route.avoidHighways,
+          avoidFerries: true,
+          unitSystem: google.maps.UnitSystem.METRIC,
+          waypoints: [],
+        }
+      : {
+          origin: route.startFull,
+          destination: route.endFull,
+          optimizeWaypoints: false,
+          travelMode: google.maps.TravelMode.WALKING,
+          avoidHighways: route.avoidHighways,
+          avoidFerries: true,
+          unitSystem: google.maps.UnitSystem.METRIC,
+          waypoints: deserializeWaypoints(route.waypoints),
+        };
+
+    const response = await requestDirectionsRoute(request);
+    if (response.status !== 'OK' || !response.result) {
+      throw new Error('Could not reload the saved route. Try generating it again.');
+    }
+
+    currentVariant = 0;
+    currentLoopCount = route.loopCount || 1;
+    lastStartFull = route.startFull;
+    lastEndFull = route.endFull;
+    lastRouteOptions = null;
+    showResolvedRoute(
+      route.startFull,
+      route.endFull,
+      response.result,
+      route.targetKm || route.totalDistanceKm,
+      0,
+      {
+        sameLoop: route.sameLoop,
+        routeStyle: route.routeStyle,
+        loopCount: route.loopCount || 1,
+        avoidHighways: route.avoidHighways,
+        totalDistanceKm: route.totalDistanceKm,
+        perLoopDistanceKm: route.perLoopDistanceKm,
+        outboundDistanceKm: route.outboundDistanceKm,
+        oneWayTargetKm: route.oneWayTargetKm,
+        midpoint: route.turnaround,
+        turnInstruction: route.turnInstruction,
+        turnIndex: route.turnIndex,
+        longEdgeKm: route.longEdgeKm,
+        shortEdgeKm: route.shortEdgeKm,
+        stopLabels: route.stopLabels || [],
+      },
+      deserializeWaypoints(route.waypoints),
+      {
+        showSwitcher: false,
+        persist: false,
+        savedRouteId: route.id,
+      }
+    );
+    showStatus(`Loaded saved route at ${route.totalDistanceKm.toFixed(1)} km.`, 'info');
+  } catch (err) {
+    clearRouteDisplay();
+    showStatus(err.message || 'Could not load the saved route.', 'error');
+  } finally {
+    setLoading(false);
+  }
 }
 
 function getLoopCountValue() {
@@ -1147,6 +2137,46 @@ function buildHalfRadiusCandidates(origin, oneWayTargetKm, seed) {
         radiusKm: distanceKm,
       });
     }
+  });
+
+  return candidates;
+}
+
+function buildRectangleLoopCandidates(origin, perLoopTargetKm, seed) {
+  const candidates = [];
+  const baseBearing = seededRandom(seed, 90) * 360;
+  const longEdgeBaseKm = Math.max(0.3, (perLoopTargetKm / 3) * 1.2);
+  const shortEdgeBaseKm = Math.max(0.2, (perLoopTargetKm / 6) * 1.2);
+  const bearingOffsets = [0, 24, 48, 72, 96, 120];
+  const longScales = [0.9, 1.0, 1.15];
+  const shortScales = [0.85, 1.0];
+  const turnSigns = [1, -1];
+
+  bearingOffsets.forEach((offset, bearingIdx) => {
+    const heading = baseBearing + offset;
+
+    longScales.forEach((longScale, longIdx) => {
+      shortScales.forEach((shortScale, shortIdx) => {
+        turnSigns.forEach((turnSign, turnIdx) => {
+          const longEdgeKm = longEdgeBaseKm * longScale;
+          const shortEdgeKm = shortEdgeBaseKm * shortScale;
+          const jitter = (seededRandom(seed, bearingIdx * 50 + longIdx * 10 + shortIdx * 4 + turnIdx + 1) - 0.5) * 10;
+          const longBearing = heading + jitter;
+          const shortBearing = longBearing + turnSign * 90;
+          const corner1 = projectPoint(origin, longBearing, longEdgeKm);
+          const corner3 = projectPoint(origin, shortBearing, shortEdgeKm);
+          const corner2 = projectPoint(corner1, shortBearing, shortEdgeKm);
+
+          candidates.push({
+            longEdgeKm,
+            shortEdgeKm,
+            heading: (longBearing + 360) % 360,
+            turnSign,
+            cornerTargets: [corner1, corner2, corner3],
+          });
+        });
+      });
+    });
   });
 
   return candidates;
@@ -1211,6 +2241,50 @@ function dedupeTurnOptions(options) {
   });
 
   return unique;
+}
+
+function selectBalancedRouteOptions(options, targetKm) {
+  if (!options.length) {
+    return { options: [], defaultIndex: 0 };
+  }
+
+  const sortedByDistance = [...options].sort((a, b) => a.totalDistanceKm - b.totalDistanceKm);
+  const center = sortedByDistance.reduce((best, option) => (
+    !best || Math.abs(option.totalDistanceKm - targetKm) < Math.abs(best.totalDistanceKm - targetKm)
+      ? option
+      : best
+  ), null);
+
+  const isSameOption = (a, b) => a === b || a.routeSignature === b.routeSignature || a.sourceKey === b.sourceKey;
+  const below = sortedByDistance
+    .filter(option => option.totalDistanceKm < targetKm && !isSameOption(option, center))
+    .sort((a, b) => b.totalDistanceKm - a.totalDistanceKm)
+    .slice(0, 2)
+    .reverse();
+  const above = sortedByDistance
+    .filter(option => option.totalDistanceKm > targetKm && !isSameOption(option, center))
+    .slice(0, 2);
+
+  const selected = [...below, center, ...above];
+
+  // If one side is sparse, backfill from the closest remaining candidates.
+  if (selected.length < Math.min(MAX_VARIANTS, options.length)) {
+    const extras = sortedByDistance.filter(option =>
+      !selected.some(existing => isSameOption(existing, option))
+    );
+    extras.forEach(option => {
+      if (selected.length < Math.min(MAX_VARIANTS, options.length)) {
+        selected.push(option);
+      }
+    });
+    selected.sort((a, b) => a.totalDistanceKm - b.totalDistanceKm);
+  }
+
+  const defaultIndex = selected.findIndex(option => isSameOption(option, center));
+  return {
+    options: selected.slice(0, MAX_VARIANTS),
+    defaultIndex: defaultIndex >= 0 ? defaultIndex : 0,
+  };
 }
 
 async function finalizeTurnOptions(startFull, options, targetKm, oneWayTargetKm, avoidHighways, loopCount) {
@@ -1306,14 +2380,131 @@ async function findRetraceRouteOptions(startFull, origin, targetKm, variantSeed,
     loopCount
   );
 
-  const matchingOptions = finalized
-    .filter(option => option.deltaKm <= ROUTE_TOLERANCE_KM)
-    .slice(0, MAX_VARIANTS);
+  const filtered = finalized.filter(option => option.deltaKm <= ROUTE_TOLERANCE_KM);
+  const balanced = selectBalancedRouteOptions(
+    filtered.length ? filtered : finalized,
+    targetKm
+  );
 
   return {
-    options: matchingOptions,
+    options: balanced.options,
+    defaultIndex: balanced.defaultIndex,
     closestDistanceKm: finalized[0]?.totalDistanceKm || closestRaw?.totalDistanceKm || null,
     oneWayTargetKm,
+  };
+}
+
+function dedupeLoopOptions(options) {
+  const sorted = [...options].sort((a, b) =>
+    a.deltaKm - b.deltaKm ||
+    a.perLoopDistanceKm - b.perLoopDistanceKm ||
+    a.longEdgeKm - b.longEdgeKm ||
+    a.shortEdgeKm - b.shortEdgeKm
+  );
+  const unique = [];
+
+  sorted.forEach(option => {
+    const duplicate = unique.some(existing => {
+      const sameCorners = existing.routeSignature === option.routeSignature;
+      const sameDistance = Math.abs(existing.totalDistanceKm - option.totalDistanceKm) < 0.15;
+      return sameCorners || sameDistance;
+    });
+
+    if (!duplicate) {
+      unique.push(option);
+    }
+  });
+
+  return unique;
+}
+
+async function findLoopRouteOptions(startFull, origin, targetKm, variantSeed, avoidHighways, loopCount) {
+  const perLoopTargetKm = targetKm / loopCount;
+  const candidateLoops = buildRectangleLoopCandidates(origin, perLoopTargetKm, variantSeed);
+  const evaluated = [];
+  let closest = null;
+  const snapCache = new Map();
+
+  const baseRequest = {
+    origin: startFull,
+    destination: startFull,
+    optimizeWaypoints: false,
+    travelMode: google.maps.TravelMode.WALKING,
+    avoidHighways,
+    avoidFerries: true,
+    unitSystem: google.maps.UnitSystem.METRIC,
+  };
+
+  for (let i = 0; i < candidateLoops.length; i++) {
+    const candidate = candidateLoops[i];
+    const snappedStops = [];
+
+    for (const target of candidate.cornerTargets) {
+      try {
+        snappedStops.push(await snapLoopStopPoint(target, snapCache));
+      } catch (err) {
+        snappedStops.length = 0;
+        break;
+      }
+    }
+
+    if (!snappedStops.length) continue;
+
+    const response = await requestDirectionsRoute({
+      ...baseRequest,
+      waypoints: snappedStops.map(stop => ({
+        location: stop.location,
+        stopover: true,
+      })),
+    });
+    if (response.status !== 'OK') continue;
+
+    const perLoopDistanceKm = getRouteDistanceKm(response.result);
+    const totalDistanceKm = perLoopDistanceKm * loopCount;
+    const option = {
+      result: response.result,
+      waypoints: snappedStops.map(stop => ({
+        location: stop.location,
+        stopover: true,
+      })),
+      turnTrace: extractTurnTraceFromResult(response.result),
+      perLoopDistanceKm,
+      totalDistanceKm,
+      deltaKm: Math.abs(totalDistanceKm - targetKm),
+      longEdgeKm: candidate.longEdgeKm,
+      shortEdgeKm: candidate.shortEdgeKm,
+      stopLabels: snappedStops.map(stop => stop.label),
+      routeSignature: snappedStops.map(stop => roundedPointKey(stop.location)).join('|'),
+    };
+
+    evaluated.push(option);
+    if (!closest || option.deltaKm < closest.deltaKm) {
+      closest = option;
+    }
+  }
+
+  if (!evaluated.length) {
+    return {
+      options: [],
+      closestDistanceKm: null,
+      suggestedLongEdgeKm: Math.max(0.3, (perLoopTargetKm / 3) * 1.2),
+      suggestedShortEdgeKm: Math.max(0.2, (perLoopTargetKm / 6) * 1.2),
+    };
+  }
+
+  const deduped = dedupeLoopOptions(evaluated);
+  const filtered = deduped.filter(option => option.deltaKm <= ROUTE_TOLERANCE_KM);
+  const balanced = selectBalancedRouteOptions(
+    filtered.length ? filtered : deduped,
+    targetKm
+  );
+
+  return {
+    options: balanced.options,
+    defaultIndex: balanced.defaultIndex,
+    closestDistanceKm: closest?.totalDistanceKm || null,
+    suggestedLongEdgeKm: Math.max(0.3, (perLoopTargetKm / 3) * 1.2),
+    suggestedShortEdgeKm: Math.max(0.2, (perLoopTargetKm / 6) * 1.2),
   };
 }
 
@@ -1391,7 +2582,8 @@ function generateRoute() {
   const pincode = document.getElementById('pincode').value.trim();
   const start = document.getElementById('start-point').value.trim();
   const end = document.getElementById('end-point').value.trim();
-  const sameLoop = document.getElementById('same-loc').checked;
+  const sameLoop = isSameAddressSelected();
+  const sameAddressRouteMode = sameLoop ? getSameAddressRouteMode() : null;
   const loopCount = sameLoop ? getLoopCountValue() : 1;
   const avoidHighways = document.getElementById('pref-no-highway').classList.contains('active');
   const targetKm = parseFloat(document.getElementById('dist-slider').value);
@@ -1405,8 +2597,9 @@ function generateRoute() {
   lastStartFull = startFull;
   lastEndFull = endFull;
   if (sameLoop) {
-    buildRetraceRouteOptions(startFull, {
+    buildSameLocationRouteOptions(startFull, {
       sameLoop,
+      routeStyle: sameAddressRouteMode,
       loopCount,
       avoidHighways,
       targetKm,
@@ -1424,29 +2617,42 @@ function generateRoute() {
   renderVariant(startFull, endFull, 0, true, lastRouteOptions);
 }
 
-async function buildRetraceRouteOptions(startFull, routeOptions) {
+async function buildSameLocationRouteOptions(startFull, routeOptions) {
   const targetKm = routeOptions.targetKm;
   setLoading(true);
   clearStatus();
 
   try {
     const origin = await geocodeAddress(startFull);
-    const optionBundle = await findRetraceRouteOptions(
-      startFull,
-      origin,
-      targetKm,
-      getDaySeed(),
-      routeOptions.avoidHighways,
-      routeOptions.loopCount
-    );
+    const optionBundle = routeOptions.routeStyle === 'loop'
+      ? await findLoopRouteOptions(
+          startFull,
+          origin,
+          targetKm,
+          getDaySeed(),
+          routeOptions.avoidHighways,
+          routeOptions.loopCount
+        )
+      : await findRetraceRouteOptions(
+          startFull,
+          origin,
+          targetKm,
+          getDaySeed(),
+          routeOptions.avoidHighways,
+          routeOptions.loopCount
+        );
 
     setLoading(false);
 
     if (!optionBundle.options.length) {
       clearRouteDisplay();
-      const closestText = optionBundle.closestDistanceKm ? ` Closest traced total was ${optionBundle.closestDistanceKm.toFixed(1)} km.` : '';
+      const closestText = optionBundle.closestDistanceKm ? ` Closest total was ${optionBundle.closestDistanceKm.toFixed(1)} km.` : '';
+      const modeText = routeOptions.routeStyle === 'loop' ? 'loop' : 'retrace';
+      const suggestionText = routeOptions.routeStyle === 'loop' && optionBundle.suggestedLongEdgeKm
+        ? ` Rectangle edges were about ${optionBundle.suggestedLongEdgeKm.toFixed(1)} km by ${optionBundle.suggestedShortEdgeKm.toFixed(1)} km.`
+        : '';
       showStatus(
-        `No retrace options landed within +/- ${ROUTE_TOLERANCE_KM} km of ${targetKm.toFixed(1)} km.${closestText} Try shifting the distance or starting point slightly.`,
+        `No ${modeText} options landed within +/- ${ROUTE_TOLERANCE_KM} km of ${targetKm.toFixed(1)} km.${closestText}${suggestionText} Try shifting the distance or starting point slightly.`,
         'warn'
       );
       return;
@@ -1457,11 +2663,15 @@ async function buildRetraceRouteOptions(startFull, routeOptions) {
       routeChoices: optionBundle.options,
       oneWayTargetKm: optionBundle.oneWayTargetKm,
     };
-    renderVariant(startFull, startFull, 0, true, lastRouteOptions);
+    currentVariant = optionBundle.defaultIndex || 0;
+    renderVariant(startFull, startFull, currentVariant, true, lastRouteOptions);
   } catch (err) {
     setLoading(false);
     clearRouteDisplay();
-    showStatus(err.message || 'Could not build retrace route options. Try adjusting your location or distance.', 'error');
+    const fallback = routeOptions.routeStyle === 'loop'
+      ? 'Could not build loop route options. Try adjusting your location or distance.'
+      : 'Could not build retrace route options. Try adjusting your location or distance.';
+    showStatus(err.message || fallback, 'error');
   }
 }
 
@@ -1511,35 +2721,47 @@ async function renderVariant(startFull, endFull, variantIdx, isFirst, routeOptio
     if (!option) return;
 
     clearStatus();
-    currentWaypoints = [];
-    currentRouteMeta = {
-      sameLoop: true,
-      loopCount: routeOptions.loopCount,
-      avoidHighways: routeOptions.avoidHighways,
-      totalDistanceKm: option.totalDistanceKm,
-      perLoopDistanceKm: option.perLoopDistanceKm,
-      outboundDistanceKm: option.outboundDistanceKm,
-      oneWayTargetKm: routeOptions.oneWayTargetKm,
-      midpoint: option.turnaround,
-      turnInstruction: option.turnInstruction,
-      turnIndex: option.turnIndex,
-      turnTrace: option.turnTrace || [],
-    };
-    directionsRenderer.setDirections(option.result);
-    currentRoute = option.result;
-    displayRouteInfo(option.result, routeOptions.targetKm, getDaySeed(), variantIdx, currentRouteMeta);
-    buildGoogleMapsUrl(startFull, startFull, [], currentRouteMeta);
-    document.getElementById('btn-gmaps').disabled = false;
-    document.getElementById('map-topbar').classList.add('visible');
-    updateVariantUI(variantIdx);
-    if (isFirst) {
-      document.getElementById('route-switcher').classList.add('visible');
-    }
-
-    showStatus(
-      `Found ${routeOptions.routeChoices.length} retrace options within +/- ${ROUTE_TOLERANCE_KM} km. Option ${variantIdx + 1} totals ${option.totalDistanceKm.toFixed(1)} km from ${option.outboundDistanceKm.toFixed(1)} km out and back.`,
-      'info'
+    showResolvedRoute(
+      startFull,
+      startFull,
+      option.result,
+      routeOptions.targetKm,
+      variantIdx,
+      {
+        sameLoop: true,
+        routeStyle: routeOptions.routeStyle,
+        loopCount: routeOptions.loopCount,
+        avoidHighways: routeOptions.avoidHighways,
+        totalDistanceKm: option.totalDistanceKm,
+        perLoopDistanceKm: option.perLoopDistanceKm,
+        outboundDistanceKm: option.outboundDistanceKm || null,
+        oneWayTargetKm: routeOptions.oneWayTargetKm || null,
+        midpoint: option.turnaround || null,
+        turnInstruction: option.turnInstruction || '',
+        turnIndex: option.turnIndex || null,
+        longEdgeKm: option.longEdgeKm || null,
+        shortEdgeKm: option.shortEdgeKm || null,
+        stopLabels: option.stopLabels || [],
+        turnTrace: option.turnTrace || [],
+      },
+      routeOptions.routeStyle === 'loop' ? option.waypoints : [],
+      {
+        showSwitcher: true,
+        persist: true,
+      }
     );
+
+    if (routeOptions.routeStyle === 'loop') {
+      showStatus(
+        `Showing ${routeOptions.routeChoices.length} closed-loop options around your ${routeOptions.targetKm.toFixed(1)} km target: up to two shorter, one center match, and two longer when available. Current option totals ${option.totalDistanceKm.toFixed(1)} km.`,
+        'info'
+      );
+    } else {
+      showStatus(
+        `Showing ${routeOptions.routeChoices.length} retrace options around your ${routeOptions.targetKm.toFixed(1)} km target: up to two shorter, one center match, and two longer when available. Current option totals ${option.totalDistanceKm.toFixed(1)} km from ${option.outboundDistanceKm.toFixed(1)} km out and back.`,
+        'info'
+      );
+    }
     return;
   }
 
@@ -1581,6 +2803,7 @@ async function renderVariant(startFull, endFull, variantIdx, isFirst, routeOptio
     currentWaypoints = bestMatch.waypoints;
     currentRouteMeta = {
       sameLoop,
+      routeStyle: 'point-to-point',
       loopCount,
       avoidHighways,
       totalDistanceKm: bestMatch.totalDistanceKm,
@@ -1590,16 +2813,19 @@ async function renderVariant(startFull, endFull, variantIdx, isFirst, routeOptio
       midpoint: null,
       turnTrace: extractTurnTraceFromResult(bestMatch.result),
     };
-    directionsRenderer.setDirections(bestMatch.result);
-    currentRoute = bestMatch.result;
-    displayRouteInfo(bestMatch.result, target_km, baseSeed, variantIdx, currentRouteMeta);
-    buildGoogleMapsUrl(startFull, endFull, bestMatch.waypoints, currentRouteMeta);
-    document.getElementById('btn-gmaps').disabled = false;
-    document.getElementById('map-topbar').classList.add('visible');
-    updateVariantUI(variantIdx);
-    if (isFirst) {
-      document.getElementById('route-switcher').classList.add('visible');
-    }
+    showResolvedRoute(
+      startFull,
+      endFull,
+      bestMatch.result,
+      target_km,
+      variantIdx,
+      currentRouteMeta,
+      bestMatch.waypoints,
+      {
+        showSwitcher: true,
+        persist: true,
+      }
+    );
 
     const actualKm = bestMatch.totalDistanceKm.toFixed(1);
     const targetText = target_km.toFixed(1);
@@ -1614,6 +2840,7 @@ async function renderVariant(startFull, endFull, variantIdx, isFirst, routeOptio
 function updateVariantUI(idx) {
   const total = getActiveOptionCount();
   const optionMode = isRouteOptionMode();
+  const routeStyle = lastRouteOptions?.routeStyle || 'point-to-point';
 
   // Dots
   const dotsEl = document.getElementById('variant-dots');
@@ -1630,10 +2857,12 @@ function updateVariantUI(idx) {
   document.getElementById('btn-next-route').disabled = idx >= total - 1;
   // Badge
   document.getElementById('route-switcher-label').textContent = optionMode
-    ? `Route Options — matched within +/- ${ROUTE_TOLERANCE_KM} km`
+    ? `${routeStyle === 'loop' ? 'Loop Options' : 'Route Options'} — centered on your target distance`
     : 'Route Variants — same day, different path';
   document.getElementById('route-switcher-help').textContent = optionMode
-    ? 'Each option is chosen from turn-by-turn cumulative distance matches'
+    ? (routeStyle === 'loop'
+        ? 'Two shorter options, one center match, and two longer options when available'
+        : 'Two shorter options, one center match, and two longer options when available')
     : 'Each uses a different waypoint pattern';
   document.getElementById('variant-badge').textContent = `${optionMode ? 'Option' : 'Variant'} ${idx + 1} of ${total}`;
   document.getElementById('badge-variant').textContent = `${optionMode ? 'O' : 'V'}${idx + 1}`;
@@ -1646,17 +2875,22 @@ function displayRouteInfo(result, target_km, seed, variantIdx, routeMeta) {
     totalTime += leg.duration.value;
   });
   const sameLoop = routeMeta.sameLoop;
+  const routeStyle = routeMeta.routeStyle || (sameLoop ? 'retrace' : 'point-to-point');
+  const isRetrace = routeStyle === 'retrace';
   const loopCount = routeMeta.loopCount;
   const avoidHighways = routeMeta.avoidHighways;
   const routeKm = routeMeta.totalDistanceKm || (totalDist / 1000);
   const perLoopKm = routeMeta.perLoopDistanceKm || (totalDist / 1000);
   const outboundKm = routeMeta.outboundDistanceKm || null;
   const oneWayTargetKm = routeMeta.oneWayTargetKm || null;
+  const longEdgeKm = routeMeta.longEdgeKm || null;
+  const shortEdgeKm = routeMeta.shortEdgeKm || null;
+  const stopLabels = Array.isArray(routeMeta.stopLabels) ? routeMeta.stopLabels : [];
   const turnInstruction = routeMeta.turnInstruction || '';
   const turnIndex = routeMeta.turnIndex || null;
   const km = routeKm.toFixed(1);
   const perLoopText = perLoopKm.toFixed(1);
-  const minsMultiplier = sameLoop ? (2 * loopCount) : loopCount;
+  const minsMultiplier = isRetrace ? (2 * loopCount) : loopCount;
   const mins = Math.round((totalTime / 60) * minsMultiplier);
   const hrs = Math.floor(mins / 60);
   const timeStr = hrs > 0 ? `${hrs}h${mins % 60}m` : `${mins}m`;
@@ -1665,21 +2899,33 @@ function displayRouteInfo(result, target_km, seed, variantIdx, routeMeta) {
   document.getElementById('stat-time').textContent = timeStr;
   document.getElementById('stat-seed').textContent = '#' + (seed % 10000);
   document.getElementById('badge-dist').textContent = km + ' km';
-  const loopLabel = loopCount > 1 ? ` · ${loopCount}x loop` : '';
+  const loopLabel = sameLoop
+    ? ` · ${loopCount}x ${isRetrace ? 'retrace' : 'loop'}`
+    : '';
   document.getElementById('route-name').innerHTML = `Route <span>#${seed % 10000} · V${variantIdx + 1}${loopLabel}</span>`;
-  document.getElementById('badge-loop-mode').textContent = sameLoop ? `Retrace x${loopCount}` : 'Point-to-point';
+  document.getElementById('badge-loop-mode').textContent = sameLoop
+    ? `${isRetrace ? 'Retrace' : 'Loop'} x${loopCount}`
+    : 'Point-to-point';
   document.getElementById('badge-strict-mode').textContent = `Strict +/- ${ROUTE_TOLERANCE_KM} km`;
   document.getElementById('badge-highways').textContent = avoidHighways ? 'No Highways' : 'Highways OK';
   document.getElementById('day-name').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   document.getElementById('route-stats').style.display = 'block';
   document.getElementById('route-plan').classList.add('visible');
-  document.getElementById('plan-mode').textContent = sameLoop ? 'Out-and-back retrace' : 'Point-to-point';
-  document.getElementById('plan-loops').textContent = sameLoop ? `${loopCount} retrace lap${loopCount === 1 ? '' : 's'}` : 'Single pass';
+  document.getElementById('plan-mode').textContent = sameLoop
+    ? (isRetrace ? 'Out-and-back retrace' : 'Closed loop')
+    : 'Point-to-point';
+  document.getElementById('plan-loops').textContent = sameLoop
+    ? `${loopCount} ${isRetrace ? 'retrace lap' : 'loop'}${loopCount === 1 ? '' : 's'}`
+    : 'Single pass';
   document.getElementById('plan-per-loop').textContent = sameLoop
-    ? `${perLoopText} km total per lap (${outboundKm.toFixed(1)} km out + ${outboundKm.toFixed(1)} km back)`
+    ? (isRetrace
+        ? `${perLoopText} km total per lap (${outboundKm.toFixed(1)} km out + ${outboundKm.toFixed(1)} km back)`
+        : `${perLoopText} km closed circuit per lap`)
     : `${km} km route`;
   document.getElementById('plan-strict').textContent = sameLoop
-    ? `Half-distance check: ${oneWayTargetKm.toFixed(1)} km target, ${outboundKm.toFixed(1)} km actual`
+    ? (isRetrace
+        ? `Half-distance check: ${oneWayTargetKm.toFixed(1)} km target, ${outboundKm.toFixed(1)} km actual`
+        : `Rectangle search${longEdgeKm ? ` at ~${longEdgeKm.toFixed(1)} x ${shortEdgeKm.toFixed(1)} km` : ''}`)
     : `Matched within +/- ${ROUTE_TOLERANCE_KM} km`;
 
   // Turn list
@@ -1689,9 +2935,15 @@ function displayRouteInfo(result, target_km, seed, variantIdx, routeMeta) {
   if (sameLoop) {
     const intro = document.createElement('div');
     intro.className = 'turn-item';
-    const repeatText = loopCount > 1 ? ` Repeat the same out-and-back lap ${loopCount} times.` : '';
-    const turnText = turnInstruction ? ` Turn around after turn ${turnIndex}: ${turnInstruction}.` : '';
-    intro.innerHTML = `<span class="turn-num">i</span><span>Run to the selected turnaround point using the directions below, then retrace the same path back to your start.${turnText}${repeatText} Each lap is about ${perLoopText} km, for about ${km} km total.</span>`;
+    if (isRetrace) {
+      const repeatText = loopCount > 1 ? ` Repeat the same out-and-back lap ${loopCount} times.` : '';
+      const turnText = turnInstruction ? ` Turn around after turn ${turnIndex}: ${turnInstruction}.` : '';
+      intro.innerHTML = `<span class="turn-num">i</span><span>Run to the selected turnaround point using the directions below, then retrace the same path back to your start.${turnText}${repeatText} Each lap is about ${perLoopText} km, for about ${km} km total.</span>`;
+    } else {
+      const repeatText = loopCount > 1 ? ` Repeat the same loop ${loopCount} times.` : '';
+      const stopText = stopLabels.length ? ` The snapped stop points are ${stopLabels.slice(0, 3).join(', ')}.` : '';
+      intro.innerHTML = `<span class="turn-num">i</span><span>Follow this closed loop from your start point through the three snapped rectangle corners and finish back at your starting address.${repeatText}${stopText} Each lap is about ${perLoopText} km, for about ${km} km total.</span>`;
+    }
     items.appendChild(intro);
   } else if (loopCount > 1) {
     const intro = document.createElement('div');
@@ -1752,6 +3004,15 @@ const darkMapStyles = [
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.getElementById('date-badge').textContent = getTodayStr();
+backupPromptSeen = readBackupPromptSeen();
+savedRoutes = readSavedRoutes();
+renderSavedRoutes();
+renderInstallHelp();
+const storedMapsApiKey = readStoredMapsApiKey();
+if (storedMapsApiKey) {
+  document.getElementById('api-key-input').value = storedMapsApiKey;
+  loadGoogleMapsScript(storedMapsApiKey, { autoLoaded: true });
+}
 
 // ─── Service Worker registration ─────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
@@ -1762,7 +3023,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-toggleSameLocation(document.getElementById('same-loc'));
+refreshSameAddressControls();
 </script>
 </body>
 </html>
